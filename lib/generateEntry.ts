@@ -37,12 +37,13 @@ VOICE RULES:
 - Reference weather naturally if provided — snow conditions get special reverence
 - Reference distance/elevation naturally — a big climb is worthy of note
 - If skijoring or canicross, make it feel genuinely epic
+- Do NOT open the entry with a bullet list of raw stats (start time/distance/duration) — those are added separately; start directly with narrative.
 
 YOUR RESPONSE MUST BE ONLY A RAW JSON OBJECT. Start with { and end with }. Nothing else — no prose, no markdown fences.
 
 {
   "title": "5 words max, punchy, Chilli's POV",
-  "entry": "2-3 paragraphs. End with a paw rating: X/10 paws — one dry line of justification.",
+  "entry": "2-3 paragraphs of narrative only. End with a paw rating: X/10 paws — one dry line of justification.",
   "tags": ["3-5 short specific tags"],
   "mood": "EPIC or EXCELLENT or SOLID or SUSPICIOUS or CHAOTIC"
 }`
@@ -125,7 +126,48 @@ export async function generateJournalEntry(
   const match = cleaned.match(/\{[\s\S]*\}/)
   if (!match) throw new Error(`Failed to parse journal entry JSON. Raw: ${text.slice(0, 200)}`)
 
-  return JSON.parse(match[0]) as GeneratedEntry
+  const parsed = JSON.parse(match[0]) as GeneratedEntry
+  const header = buildEntryStatsHeader(activity)
+  if (header) {
+    parsed.entry = `${header}\n\n${parsed.entry.trim()}`
+  }
+  return parsed
+}
+
+export function buildEntryStatsHeader(activity: Activity): string {
+  const lines: string[] = []
+  if (activity.start_date) {
+    const d = new Date(activity.start_date)
+    const startStr = d.toLocaleString('en-US', {
+      timeZone: 'America/Los_Angeles',
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+    lines.push(`Start: ${startStr} PT`)
+  }
+  if (activity.distance_meters) {
+    const mi = (activity.distance_meters / 1609.34).toFixed(1)
+    lines.push(`Distance: ${mi} mi`)
+  }
+  if (activity.moving_time_seconds) {
+    lines.push(`Moving time: ${formatDuration(activity.moving_time_seconds)}`)
+  }
+  if (
+    activity.elapsed_time_seconds &&
+    activity.moving_time_seconds &&
+    activity.elapsed_time_seconds !== activity.moving_time_seconds
+  ) {
+    lines.push(`Elapsed: ${formatDuration(activity.elapsed_time_seconds)}`)
+  }
+  if (activity.total_elevation_gain && activity.total_elevation_gain > 0) {
+    lines.push(`Elevation gain: ${Math.round(activity.total_elevation_gain * 3.28084)} ft`)
+  }
+  if (!lines.length) return ''
+  return lines.join('\n')
 }
 
 function formatDuration(seconds: number): string {

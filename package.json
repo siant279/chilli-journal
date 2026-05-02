@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "import": "npx ts-node --project tsconfig.scripts.json scripts/historicalImport.ts"
+    "import": "npx ts-node --project tsconfig.scripts.json scripts/historicalImport.ts",
+    "backfill:entries": "npx ts-node --project tsconfig.scripts.json scripts/backfillJournalHeaders.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",
