@@ -130,3 +130,4 @@ scripts/
 supabase/
   schema.sql                  # Database schema
 ```
+# chilli-journal
