@@ -1,0 +1,33 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700;1,900&family=Lora:ital,wght@0,400;0,600;1,400;1,600&family=Courier+Prime:wght@400;700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --ink: #160800;
+  --ink-light: #3d2010;
+  --parchment: #f7f2e8;
+  --parchment-dark: #ede8da;
+  --cream: #fffdf7;
+  --border: #e0d4be;
+  --muted: #9a7a5a;
+  --accent: #5b21b6;
+  --strava: #fc4c02;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--parchment);
+  color: var(--ink);
+  font-family: 'Lora', serif;
+  min-height: 100vh;
+}
+
+::selection {
+  background: #e8d4ff;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--parchment-dark); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
