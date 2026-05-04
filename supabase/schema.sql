@@ -89,12 +89,12 @@ create or replace view entries_with_stats as
     a.total_elevation_gain,
     a.sport_type,
     a.city,
-    a.country,
     a.weather_temp_c,
     a.weather_condition,
     a.photo_urls,
     a.start_lat,
-    a.start_lng
+    a.start_lng,
+    a.country
   from journal_entries je
   join activities a on je.activity_id = a.id
   order by a.start_date desc;
