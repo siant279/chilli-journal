@@ -23,6 +23,7 @@ export type Activity = {
   start_lat: number | null
   start_lng: number | null
   city: string | null
+  region: string | null
   country: string | null
   weather_temp_c: number | null
   weather_condition: string | null
@@ -54,6 +55,7 @@ export type EntryWithStats = JournalEntry & {
   total_elevation_gain: number
   sport_type: string
   city: string | null
+  region: string | null
   country: string | null
   weather_temp_c: number | null
   weather_condition: string | null

@@ -24,6 +24,7 @@ import { getHistoricalWeather } from '../lib/weather'
 import { generateJournalEntry } from '../lib/generateEntry'
 import { normalizeStartLatLng } from '../lib/geo'
 import { getHomeCoordsFromEnv } from '../lib/homeCoords'
+import { resolveActivityPlaceNames } from '../lib/reverseGeocode'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -165,6 +166,22 @@ async function main() {
         weather = await getHistoricalWeather(lat, lng, new Date(activity.start_date))
       }
 
+      const { data: existingAct } = await supabaseAdmin
+        .from('activities')
+        .select('city, country, region')
+        .eq('id', activity.id)
+        .maybeSingle()
+      const stravaCity = activity.location_city || existingAct?.city || null
+      const stravaCountry = activity.location_country || existingAct?.country || null
+      const place = await resolveActivityPlaceNames(
+        lat,
+        lng,
+        stravaCity,
+        stravaCountry,
+        existingAct?.region ?? null
+      )
+      if (place.geocoded) await sleep(1100)
+
       const activityRecord = {
         id: activity.id,
         strava_id: activity.id,
@@ -177,8 +194,9 @@ async function main() {
         sport_type: activity.sport_type || activity.type,
         start_lat: lat,
         start_lng: lng,
-        city: activity.location_city || null,
-        country: activity.location_country || null,
+        city: place.city,
+        region: place.region,
+        country: place.country,
         weather_temp_c: weather?.temp_c ?? null,
         weather_condition: weather?.condition ?? null,
         weather_wind_kmh: weather?.wind_kmh ?? null,

@@ -11,6 +11,7 @@
     "backfill:entries": "npx ts-node --project tsconfig.scripts.json scripts/backfillJournalHeaders.ts",
     "repair:journals": "npx ts-node --project tsconfig.scripts.json scripts/repairMissingJournalEntries.ts",
     "repair:coords": "npx ts-node --project tsconfig.scripts.json scripts/repairActivityStartCoords.ts",
+    "backfill:locations": "npx ts-node --project tsconfig.scripts.json scripts/backfillLocationsFromCoords.ts",
     "diag:day": "npx ts-node --project tsconfig.scripts.json scripts/diagDayActivities.ts"
   },
   "dependencies": {

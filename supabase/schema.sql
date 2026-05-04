@@ -15,6 +15,7 @@ create table if not exists activities (
   start_lat float,
   start_lng float,
   city text,
+  region text, -- state / province (from geocode or future Strava field)
   country text,
   weather_temp_c float,
   weather_condition text,
@@ -73,6 +74,7 @@ create index if not exists activities_start_date_idx on activities(start_date de
 create index if not exists journal_entries_activity_id_idx on journal_entries(activity_id);
 
 -- Helpful view joining entries with activity stats
+-- On existing DBs, adding columns: drop view first if replacing — see add_region_column.sql
 create or replace view entries_with_stats as
   select
     je.id,
@@ -89,6 +91,7 @@ create or replace view entries_with_stats as
     a.total_elevation_gain,
     a.sport_type,
     a.city,
+    a.region,
     a.weather_temp_c,
     a.weather_condition,
     a.photo_urls,
@@ -98,3 +101,5 @@ create or replace view entries_with_stats as
   from journal_entries je
   join activities a on je.activity_id = a.id
   order by a.start_date desc;
+
+-- Existing databases created before `region`: run supabase/add_region_column.sql in the SQL editor.

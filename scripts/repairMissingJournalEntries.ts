@@ -100,6 +100,7 @@ function toActivity(row: any): Activity {
     start_lat: row.start_lat === null || row.start_lat === undefined ? null : Number(row.start_lat),
     start_lng: row.start_lng === null || row.start_lng === undefined ? null : Number(row.start_lng),
     city: row.city ?? null,
+    region: row.region ?? null,
     country: row.country ?? null,
     weather_temp_c: row.weather_temp_c === null || row.weather_temp_c === undefined ? null : Number(row.weather_temp_c),
     weather_condition: row.weather_condition ?? null,

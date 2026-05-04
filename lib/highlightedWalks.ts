@@ -1,6 +1,6 @@
 import type { EntryWithStats } from '@/lib/supabase'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { haversineFromHome, haversineMeters } from '@/lib/geo'
+import { activityStartLocationLabel, haversineFromHome, haversineMeters } from '@/lib/geo'
 import { getHomeCoordsFromEnv } from '@/lib/homeCoords'
 
 export { haversineFromHome, haversineMeters } from '@/lib/geo'
@@ -118,7 +118,7 @@ export async function getWalkHighlights(admin: SupabaseClient): Promise<WalkHigh
         badge: 'Furthest from home',
         title: far.title,
         stat: `${mi.toFixed(1)} mi away`,
-        sub: `${far.city || 'Sierra trail'} · ${new Date(far.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`,
+        sub: `${activityStartLocationLabel(far) || 'Sierra trail'} · ${new Date(far.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`,
         entry: far,
       })
     }

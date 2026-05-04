@@ -71,15 +71,16 @@ export function formatLatLngForDisplay(lat: number, lng: number): string {
 }
 
 /**
- * Label for journal header / UI: city + country from Strava when present; otherwise formatted GPS start.
+ * Label for journal header / UI: town, state/region, country when present; otherwise formatted GPS start.
  */
 export function activityStartLocationLabel(activity: {
   city: string | null | undefined
+  region: string | null | undefined
   country: string | null | undefined
   start_lat: number | null | undefined
   start_lng: number | null | undefined
 }): string | null {
-  const parts = [activity.city, activity.country].filter(Boolean) as string[]
+  const parts = [activity.city, activity.region, activity.country].filter(Boolean) as string[]
   if (parts.length) return parts.join(', ')
   const lat = finiteCoord(activity.start_lat)
   const lng = finiteCoord(activity.start_lng)

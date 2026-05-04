@@ -6,6 +6,7 @@ import { generateJournalEntry } from '@/lib/generateEntry'
 import { logWebhookIngest } from '@/lib/webhookLog'
 import { normalizeStartLatLng } from '@/lib/geo'
 import { getHomeCoordsFromEnv } from '@/lib/homeCoords'
+import { resolveActivityPlaceNames } from '@/lib/reverseGeocode'
 
 export const maxDuration = 120
 
@@ -181,7 +182,7 @@ async function processNewActivity(activityId: number, ownerId?: number) {
 
     const { data: existingActivity } = await supabaseAdmin
       .from('activities')
-      .select('id')
+      .select('id, city, country, region')
       .eq('strava_id', activityId)
       .maybeSingle()
 
@@ -203,6 +204,16 @@ async function processNewActivity(activityId: number, ownerId?: number) {
         ? await getHistoricalWeather(lat, lng, new Date(fullActivity.start_date))
         : null
 
+    const stravaCity = fullActivity.location_city || existingActivity?.city || null
+    const stravaCountry = fullActivity.location_country || existingActivity?.country || null
+    const place = await resolveActivityPlaceNames(
+      lat,
+      lng,
+      stravaCity,
+      stravaCountry,
+      existingActivity?.region ?? null
+    )
+
     const activityRecord = {
       id: fullActivity.id,
       strava_id: fullActivity.id,
@@ -215,8 +226,9 @@ async function processNewActivity(activityId: number, ownerId?: number) {
       sport_type: fullActivity.sport_type || fullActivity.type,
       start_lat: lat,
       start_lng: lng,
-      city: fullActivity.location_city || null,
-      country: fullActivity.location_country || null,
+      city: place.city,
+      region: place.region,
+      country: place.country,
       weather_temp_c: weather?.temp_c ?? null,
       weather_condition: weather?.condition ?? null,
       weather_wind_kmh: weather?.wind_kmh ?? null,
