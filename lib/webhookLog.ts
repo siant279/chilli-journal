@@ -6,13 +6,23 @@ function sleep(ms: number) {
 
 /** Supabase/PostgREST can surface transient network failures as fetch timeouts between edge and DB. */
 function isRetryableLogError(e: unknown): boolean {
-  const msg =
-    typeof e === 'object' && e !== null && 'message' in e && typeof (e as { message: unknown }).message === 'string'
-      ? (e as { message: string }).message
-      : e instanceof Error
+  const parts: string[] = []
+  if (typeof e === 'object' && e !== null) {
+    const o = e as Record<string, unknown>
+    for (const k of ['message', 'details', 'hint', 'code']) {
+      if (typeof o[k] === 'string') parts.push(o[k] as string)
+    }
+  } else {
+    parts.push(
+      e instanceof Error
         ? `${e.message}${(e as Error & { cause?: unknown }).cause ? String((e as Error & { cause?: unknown }).cause) : ''}`
         : String(e)
-  return /ETIMEDOUT|ECONNRESET|ECONNREFUSED|fetch failed|socket|network|timed out/i.test(msg)
+    )
+  }
+  const msg = parts.join('\n')
+  return /ETIMEDOUT|ECONNRESET|ECONNREFUSED|fetch failed|socket|network|timed out|TLS|SSL|disconnected/i.test(
+    msg
+  )
 }
 
 export type WebhookIngestStage =

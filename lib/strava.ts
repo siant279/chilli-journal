@@ -124,24 +124,44 @@ function isTransientStravaActivityStatus(status: number): boolean {
   return status === 408 || status === 425 || status === 429 || status === 597 || status >= 500
 }
 
+function isTransientFetchThrow(e: unknown): boolean {
+  const s =
+    e instanceof Error
+      ? `${e.message}${(e as Error & { cause?: unknown }).cause ? String((e as Error & { cause?: unknown }).cause) : ''}`
+      : String(e)
+  return /ETIMEDOUT|ECONNRESET|ECONNREFUSED|fetch failed|socket|network|timed out|TLS|SSL|disconnected|ENOTFOUND|EAI_AGAIN/i.test(
+    s
+  )
+}
+
 // Fetch a single activity with full details
 export async function fetchActivity(accessToken: string, activityId: number) {
   const maxAttempts = 4
+  let lastThrow: unknown
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const resp = await fetch(`${BASE_URL}/activities/${activityId}`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    })
-    if (resp.ok) return resp.json()
-    if (attempt < maxAttempts - 1 && isTransientStravaActivityStatus(resp.status)) {
-      await sleep(400 * (attempt + 1))
-      continue
+    try {
+      const resp = await fetch(`${BASE_URL}/activities/${activityId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+      if (resp.ok) return resp.json()
+      if (attempt < maxAttempts - 1 && isTransientStravaActivityStatus(resp.status)) {
+        await sleep(400 * (attempt + 1))
+        continue
+      }
+      const body = await resp.text().catch(() => '')
+      throw new Error(
+        `Strava activity fetch failed: ${resp.status}${body ? ` — ${body.slice(0, 200)}` : ''}`.trim()
+      )
+    } catch (e) {
+      lastThrow = e
+      if (attempt < maxAttempts - 1 && isTransientFetchThrow(e)) {
+        await sleep(400 * (attempt + 1))
+        continue
+      }
+      throw e
     }
-    const body = await resp.text().catch(() => '')
-    throw new Error(
-      `Strava activity fetch failed: ${resp.status}${body ? ` — ${body.slice(0, 200)}` : ''}`.trim()
-    )
   }
-  throw new Error('Strava activity fetch failed: exhausted retries')
+  throw lastThrow instanceof Error ? lastThrow : new Error('Strava activity fetch failed: exhausted retries')
 }
 
 // Fetch photos for an activity
