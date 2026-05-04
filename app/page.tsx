@@ -2,7 +2,19 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { EntryWithStats } from '@/lib/supabase'
 import JournalClient from '@/components/JournalClient'
 import { getValidAccessToken } from '@/lib/strava'
+import type { WalkHighlight } from '@/lib/highlightedWalks'
 import { getWalkHighlights } from '@/lib/highlightedWalks'
+
+/** Record holders older than the newest 100 posts still need a DOM anchor for spotlight links. */
+function mergeJournalWithRecords(journal: EntryWithStats[], records: WalkHighlight[]): EntryWithStats[] {
+  const byId = new Map<string, EntryWithStats>(journal.map(e => [e.id, e]))
+  for (const r of records) {
+    if (!byId.has(r.entry.id)) byId.set(r.entry.id, r.entry)
+  }
+  return Array.from(byId.values()).sort(
+    (a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime(),
+  )
+}
 
 /** New journal rows must show without redeploy; do not statically cache this page at build time. */
 export const dynamic = 'force-dynamic'
@@ -94,13 +106,15 @@ async function checkStravaConnected(): Promise<boolean> {
 }
 
 export default async function Home() {
-  const [entries, stats, stravaConnected, chartStartDates, recordWalks] = await Promise.all([
+  const [journalPage, stats, stravaConnected, chartStartDates, recordWalks] = await Promise.all([
     getEntries(),
     getStats(),
     checkStravaConnected(),
     getEntryStartDatesForChart(),
     getWalkHighlights(supabaseAdmin),
   ])
+
+  const entries = mergeJournalWithRecords(journalPage, recordWalks)
 
   return (
     <JournalClient
