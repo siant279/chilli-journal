@@ -4,6 +4,9 @@
  *
  *   npm run backfill:entries
  *   npm run backfill:entries -- --regenerate
+ *
+ * Header-only run rebuilds the top stats block (Start, Location, Weather, distance, etc.) from
+ * `activities` — use after changing buildEntryStatsHeader or when location/weather data was backfilled.
  *   npm run backfill:entries -- --limit 20 --dry-run
  */
 
@@ -108,6 +111,8 @@ function isStatsHeaderLine(line: string): boolean {
   const t = line.trim()
   return (
     /^Start:\s/.test(t) ||
+    /^Location:\s/.test(t) ||
+    /^Weather:\s/.test(t) ||
     /^Distance:\s/.test(t) ||
     /^Moving time:\s/.test(t) ||
     /^Elapsed:\s/.test(t) ||
