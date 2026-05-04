@@ -10,6 +10,7 @@
     "import": "npx ts-node --project tsconfig.scripts.json scripts/historicalImport.ts",
     "backfill:entries": "npx ts-node --project tsconfig.scripts.json scripts/backfillJournalHeaders.ts",
     "repair:journals": "npx ts-node --project tsconfig.scripts.json scripts/repairMissingJournalEntries.ts",
+    "repair:coords": "npx ts-node --project tsconfig.scripts.json scripts/repairActivityStartCoords.ts",
     "diag:day": "npx ts-node --project tsconfig.scripts.json scripts/diagDayActivities.ts"
   },
   "dependencies": {

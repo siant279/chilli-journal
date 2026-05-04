@@ -1,4 +1,5 @@
 import type { EntryWithStats } from '@/lib/supabase'
+import { activityStartLocationLabel } from '@/lib/geo'
 
 const MOOD: Record<string, { emoji: string; color: string; border: string; label: string }> = {
   EPIC:       { emoji: '🐺', color: '#5b21b6', border: '#7c3aed', label: 'EPIC' },
@@ -21,11 +22,6 @@ function formatDur(s: number) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`
 }
 
-function locationHeadline(city: string | null, country: string | null): string | null {
-  const parts = [city, country].filter(Boolean)
-  return parts.length ? parts.join(', ') : null
-}
-
 export default function EntryCard({ entry }: { entry: EntryWithStats }) {
   const m = MOOD[entry.mood] || MOOD.SOLID
   const date = new Date(entry.start_date)
@@ -37,7 +33,7 @@ export default function EntryCard({ entry }: { entry: EntryWithStats }) {
     hour: 'numeric',
     minute: '2-digit',
   })
-  const locationStr = locationHeadline(entry.city, entry.country)
+  const locationStr = activityStartLocationLabel(entry)
   const stravaHref = `https://www.strava.com/activities/${entry.strava_id}`
 
   const stats = [

@@ -22,6 +22,8 @@ import {
 import { laDayBoundsUtc, laTodayYmd } from '../lib/laCalendar'
 import { getHistoricalWeather } from '../lib/weather'
 import { generateJournalEntry } from '../lib/generateEntry'
+import { normalizeStartLatLng } from '../lib/geo'
+import { getHomeCoordsFromEnv } from '../lib/homeCoords'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -154,10 +156,12 @@ async function main() {
         : []
       if (totalPhotoCount > 0) await sleep(500)
 
-      const lat = activity.start_latlng?.[0]
-      const lng = activity.start_latlng?.[1]
+      const rawLat = activity.start_latlng?.[0]
+      const rawLng = activity.start_latlng?.[1]
+      const home = getHomeCoordsFromEnv()
+      const { lat, lng } = normalizeStartLatLng(rawLat, rawLng, home)
       let weather = null
-      if (lat && lng) {
+      if (lat != null && lng != null) {
         weather = await getHistoricalWeather(lat, lng, new Date(activity.start_date))
       }
 
@@ -171,8 +175,8 @@ async function main() {
         elapsed_time_seconds: activity.elapsed_time,
         total_elevation_gain: activity.total_elevation_gain,
         sport_type: activity.sport_type || activity.type,
-        start_lat: lat || null,
-        start_lng: lng || null,
+        start_lat: lat,
+        start_lng: lng,
         city: activity.location_city || null,
         country: activity.location_country || null,
         weather_temp_c: weather?.temp_c ?? null,

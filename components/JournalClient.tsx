@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import type { EntryWithStats } from '@/lib/supabase'
 import type { WalkHighlight } from '@/lib/highlightedWalks'
-import { haversineMeters } from '@/lib/geo'
+import { haversineFromHome } from '@/lib/geo'
 import EntryCard from './EntryCard'
 import RecordSpotlights from './RecordSpotlights'
 import StatsDashboard from './StatsDashboard'
@@ -29,8 +29,8 @@ function compareEntries(
 ): number {
   const t = (e: EntryWithStats) => new Date(e.start_date).getTime()
   const fromHomeM = (e: EntryWithStats): number | null => {
-    if (!home || e.start_lat == null || e.start_lng == null) return null
-    return haversineMeters(home.lat, home.lng, e.start_lat, e.start_lng)
+    if (!home) return null
+    return haversineFromHome(home, e.start_lat, e.start_lng)
   }
 
   let c = 0

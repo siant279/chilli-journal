@@ -4,6 +4,8 @@ import { getValidAccessToken, fetchActivity, fetchActivityPhotos, isChilliActivi
 import { getHistoricalWeather } from '@/lib/weather'
 import { generateJournalEntry } from '@/lib/generateEntry'
 import { logWebhookIngest } from '@/lib/webhookLog'
+import { normalizeStartLatLng } from '@/lib/geo'
+import { getHomeCoordsFromEnv } from '@/lib/homeCoords'
 
 export const maxDuration = 120
 
@@ -192,11 +194,14 @@ async function processNewActivity(activityId: number, ownerId?: number) {
       ? await fetchActivityPhotos(accessToken, activityId)
       : []
 
-    const lat = fullActivity.start_latlng?.[0]
-    const lng = fullActivity.start_latlng?.[1]
-    const weather = lat && lng
-      ? await getHistoricalWeather(lat, lng, new Date(fullActivity.start_date))
-      : null
+    const rawLat = fullActivity.start_latlng?.[0]
+    const rawLng = fullActivity.start_latlng?.[1]
+    const home = getHomeCoordsFromEnv()
+    const { lat, lng } = normalizeStartLatLng(rawLat, rawLng, home)
+    const weather =
+      lat != null && lng != null
+        ? await getHistoricalWeather(lat, lng, new Date(fullActivity.start_date))
+        : null
 
     const activityRecord = {
       id: fullActivity.id,
@@ -208,8 +213,8 @@ async function processNewActivity(activityId: number, ownerId?: number) {
       elapsed_time_seconds: fullActivity.elapsed_time,
       total_elevation_gain: fullActivity.total_elevation_gain,
       sport_type: fullActivity.sport_type || fullActivity.type,
-      start_lat: lat || null,
-      start_lng: lng || null,
+      start_lat: lat,
+      start_lng: lng,
       city: fullActivity.location_city || null,
       country: fullActivity.location_country || null,
       weather_temp_c: weather?.temp_c ?? null,

@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { activityStartLocationLabel } from './geo'
 import { Activity } from './supabase'
 import { weatherSummaryForPrompt } from './weather'
 
@@ -106,7 +107,8 @@ export async function generateJournalEntry(
   if (miles) prompt += `Distance: ${miles} miles\n`
   if (elevFt && elevFt > 0) prompt += `Elevation gain: ${elevFt}ft\n`
   if (duration) prompt += `Duration: ${duration}\n`
-  if (activity.city) prompt += `Location: ${activity.city}\n`
+  const locLabel = activityStartLocationLabel(activity)
+  if (locLabel) prompt += `Location: ${locLabel}\n`
   if (weatherStr) prompt += `${weatherStr}\n`
   if (humanNote) prompt += `\nMama's notes: "${humanNote}"\n`
   if (activity.start_date) {
@@ -158,9 +160,9 @@ export function buildEntryStatsHeader(activity: Activity): string {
     })
     lines.push(`Start: ${startStr} PT`)
   }
-  const locParts = [activity.city, activity.country].filter(Boolean)
-  if (locParts.length) {
-    lines.push(`Location: ${locParts.join(', ')}`)
+  const locLabel = activityStartLocationLabel(activity)
+  if (locLabel) {
+    lines.push(`Location: ${locLabel}`)
   }
   if (activity.weather_temp_c !== null && activity.weather_temp_c !== undefined) {
     const cond = activity.weather_condition || 'conditions recorded'

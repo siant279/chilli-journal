@@ -1,9 +1,9 @@
 import type { EntryWithStats } from '@/lib/supabase'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { haversineMeters } from '@/lib/geo'
+import { haversineFromHome, haversineMeters } from '@/lib/geo'
 import { getHomeCoordsFromEnv } from '@/lib/homeCoords'
 
-export { haversineMeters } from '@/lib/geo'
+export { haversineFromHome, haversineMeters } from '@/lib/geo'
 
 function tieDateMs(e: EntryWithStats): number {
   return new Date(e.start_date).getTime()
@@ -107,14 +107,11 @@ export async function getWalkHighlights(admin: SupabaseClient): Promise<WalkHigh
   if (home) {
     const far = pickMax(
       rows,
-      r => {
-        if (r.start_lat == null || r.start_lng == null) return -1
-        return haversineMeters(home.lat, home.lng, r.start_lat, r.start_lng)
-      },
-      r => r.start_lat != null && r.start_lng != null
+      r => haversineFromHome(home, r.start_lat, r.start_lng) ?? -1,
+      r => haversineFromHome(home, r.start_lat, r.start_lng) != null
     )
     if (far) {
-      const m = haversineMeters(home.lat, home.lng, far.start_lat!, far.start_lng!)
+      const m = haversineFromHome(home, far.start_lat, far.start_lng)!
       const mi = m / 1609.34
       out.push({
         kind: 'furthest_from_home',
