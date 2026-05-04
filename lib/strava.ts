@@ -178,10 +178,16 @@ export async function fetchActivityPhotos(accessToken: string, activityId: numbe
   }
 }
 
-// Filter activities for Chilli walks (see PROJECT_BRIEF: "Chilli" OR "Fi", case insensitive)
+/**
+ * Fi collar / Chilli walks. Strava title usually contains "Chilli" and/or "Fi Smart Collar".
+ * Do not use naive substring `"fi"` — it matches inside unrelated words ("office", "fitness", …).
+ */
 export function isChilliActivity(name: string): boolean {
   const lower = name.toLowerCase()
-  return lower.includes('chilli') || lower.includes('fi')
+  if (lower.includes('chilli')) return true
+  if (/\bfi\b/.test(lower)) return true
+  if (lower.includes('fi smart') || lower.includes('fi collar')) return true
+  return false
 }
 
 function sleep(ms: number) {

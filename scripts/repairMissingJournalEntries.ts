@@ -10,7 +10,7 @@
  *     imported (no activity row) need `npm run import` or Strava API — not this script.
  *   - `--since YYYY-MM-DD` is interpreted as midnight on that calendar date in your machine's
  *     local timezone (not UTC), so "last few days" matches what you expect.
- *   - By default, names must pass isChilliActivity (contains "chilli" or "fi", case insensitive).
+ *   - By default, names must pass isChilliActivity (see lib/strava.ts — Chilli / Fi collar, not bare "fi" in words).
  *     Use --no-name-filter only if you intentionally want every unmatched activity in range.
  */
 

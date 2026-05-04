@@ -71,14 +71,15 @@ async function main() {
   const existingEntryActivityIds = new Set((existingEntries || []).map((e: any) => e.activity_id))
   console.log(`Already journaled: ${existingEntryActivityIds.size} activities`)
 
-  // Only fetch since Nov 2023
+  // Strava only exposes paginated athlete activities — no API-side title filter, so we download
+  // the date range once, then keep only Chilli/Fi walks locally (same as webhook).
   const after = Math.floor(new Date('2023-11-01').getTime() / 1000)
-  console.log('Fetching Strava activities since Nov 2023...')
+  console.log('Fetching Strava activities since Nov 2023 (full list from API)...')
   const allActivities = await fetchAllActivities(accessToken, after)
-  console.log(`Total activities since Nov 2023: ${allActivities.length}`)
+  console.log(`Strava returned ${allActivities.length} activities (all sports/titles).`)
 
   const chilliActivities = allActivities.filter(a => isChilliActivity(a.name))
-  console.log(`Chilli activities found: ${chilliActivities.length}\n`)
+  console.log(`After Chilli/Fi title filter: ${chilliActivities.length} — only those are imported.\n`)
 
   if (chilliActivities.length === 0) {
     console.log('No Chilli activities found.')
