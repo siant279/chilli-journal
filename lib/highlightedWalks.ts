@@ -1,17 +1,17 @@
 import type { EntryWithStats } from '@/lib/supabase'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-/** Truckee-ish default if env unset (straight-line “from home” is approximate). */
-const DEFAULT_HOME_LAT = 39.3257
-const DEFAULT_HOME_LNG = -120.1774
-
-function homeCoords(): { lat: number; lng: number } {
+/**
+ * “Furthest from home” uses **only** your configured home (no hardcoded default).
+ * Set in `.env.local` and Vercel: `HOME_LAT` and `HOME_LNG` (decimal degrees, e.g. 39.3260 -120.1850).
+ * If either is missing/invalid, the furthest-from-home spotlight is omitted.
+ */
+function homeCoordsFromEnv(): { lat: number; lng: number } | null {
   const lat = Number(process.env.HOME_LAT)
   const lng = Number(process.env.HOME_LNG)
-  return {
-    lat: Number.isFinite(lat) ? lat : DEFAULT_HOME_LAT,
-    lng: Number.isFinite(lng) ? lng : DEFAULT_HOME_LNG,
-  }
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null
+  return { lat, lng }
 }
 
 /** Haversine distance in meters. */
@@ -90,7 +90,7 @@ export async function getWalkHighlights(admin: SupabaseClient): Promise<WalkHigh
   const rows = await fetchAllEntriesWithStats(admin)
   if (rows.length === 0) return []
 
-  const home = homeCoords()
+  const home = homeCoordsFromEnv()
   const out: WalkHighlight[] = []
 
   const longest = pickMax(
@@ -125,25 +125,27 @@ export async function getWalkHighlights(admin: SupabaseClient): Promise<WalkHigh
     })
   }
 
-  const far = pickMax(
-    rows,
-    r => {
-      if (r.start_lat == null || r.start_lng == null) return -1
-      return haversineMeters(home.lat, home.lng, r.start_lat, r.start_lng)
-    },
-    r => r.start_lat != null && r.start_lng != null
-  )
-  if (far) {
-    const m = haversineMeters(home.lat, home.lng, far.start_lat!, far.start_lng!)
-    const mi = m / 1609.34
-    out.push({
-      kind: 'furthest_from_home',
-      badge: 'Furthest from home',
-      title: far.title,
-      stat: `${mi.toFixed(1)} mi away`,
-      sub: `${far.city || 'Sierra trail'} · ${new Date(far.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`,
-      entry: far,
-    })
+  if (home) {
+    const far = pickMax(
+      rows,
+      r => {
+        if (r.start_lat == null || r.start_lng == null) return -1
+        return haversineMeters(home.lat, home.lng, r.start_lat, r.start_lng)
+      },
+      r => r.start_lat != null && r.start_lng != null
+    )
+    if (far) {
+      const m = haversineMeters(home.lat, home.lng, far.start_lat!, far.start_lng!)
+      const mi = m / 1609.34
+      out.push({
+        kind: 'furthest_from_home',
+        badge: 'Furthest from home',
+        title: far.title,
+        stat: `${mi.toFixed(1)} mi away`,
+        sub: `${far.city || 'Sierra trail'} · ${new Date(far.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`,
+        entry: far,
+      })
+    }
   }
 
   return out
