@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { waitUntil } from '@vercel/functions'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getValidAccessToken, fetchActivity, fetchActivityPhotos, isChilliActivity } from '@/lib/strava'
 import { getHistoricalWeather } from '@/lib/weather'
 import { generateJournalEntry } from '@/lib/generateEntry'
+import { logWebhookIngest } from '@/lib/webhookLog'
+
+export const maxDuration = 120
 
 const VERIFY_TOKEN = process.env.STRAVA_WEBHOOK_VERIFY_TOKEN
+
+function parseOptionalFiniteNumber(v: unknown): number | undefined {
+  if (typeof v === 'number' && Number.isFinite(v)) return v
+  if (typeof v === 'string') {
+    const n = Number(v)
+    return Number.isFinite(n) ? n : undefined
+  }
+  return undefined
+}
 
 // Strava webhook verification (GET) — Strava calls this when you register the webhook
 export async function GET(request: NextRequest) {
@@ -20,6 +31,11 @@ export async function GET(request: NextRequest) {
 
   if (mode === 'subscribe' && token === VERIFY_TOKEN) {
     console.log('Strava webhook verified')
+    void logWebhookIngest({
+      stage: 'verification_ok',
+      detail: 'hub.challenge issued',
+      meta: challenge ? { has_challenge: true } : {},
+    })
     return NextResponse.json({ 'hub.challenge': challenge })
   }
 
@@ -28,26 +44,77 @@ export async function GET(request: NextRequest) {
 
 // Strava webhook event (POST) — fires when a new activity is created
 export async function POST(request: NextRequest) {
-  const body = await request.json()
-  console.log('Strava webhook event:', { object_type: body.object_type, aspect_type: body.aspect_type, object_id: body.object_id, owner_id: body.owner_id })
-
-  // Only process new activity creation events
-  if (body.object_type !== 'activity' || body.aspect_type !== 'create') {
+  let body: Record<string, unknown>
+  try {
+    body = await request.json()
+  } catch {
+    void logWebhookIngest({
+      stage: 'error',
+      detail: 'invalid_json_body',
+      error_message: 'POST body was not valid JSON',
+    })
     return NextResponse.json({ ok: true })
   }
 
-  const activityId = body.object_id as number
+  console.log('Strava webhook event:', {
+    object_type: body.object_type,
+    aspect_type: body.aspect_type,
+    object_id: body.object_id,
+    owner_id: body.owner_id,
+  })
 
-  const work = processNewActivity(activityId, body.owner_id as number | undefined).catch(e =>
+  // Only process new activity creation events
+  if (body.object_type !== 'activity' || body.aspect_type !== 'create') {
+    void logWebhookIngest({
+      stage: 'ignored_event',
+      detail: 'not_activity_create',
+      meta: {
+        object_type: body.object_type,
+        aspect_type: body.aspect_type,
+        object_id: body.object_id,
+      },
+    })
+    return NextResponse.json({ ok: true })
+  }
+
+  const rawId = body.object_id
+  const activityId =
+    typeof rawId === 'number'
+      ? rawId
+      : typeof rawId === 'string'
+        ? Number(rawId)
+        : NaN
+  const ownerId = parseOptionalFiniteNumber(body.owner_id)
+
+  if (!Number.isFinite(activityId)) {
+    void logWebhookIngest({
+      stage: 'error',
+      detail: 'missing_or_invalid_object_id',
+      meta: { object_type: body.object_type, aspect_type: body.aspect_type },
+    })
+    return NextResponse.json({ ok: true })
+  }
+
+  void logWebhookIngest({
+    strava_activity_id: activityId,
+    strava_owner_id: ownerId ?? null,
+    stage: 'received',
+    detail: 'activity_create',
+  })
+
+  try {
+    await processNewActivity(activityId, ownerId)
+  } catch (e) {
+    // Still return 200 so Strava doesn't wedge retries on transport-ish failures; durable log below.
     console.error(`Failed to process activity ${activityId}:`, e)
-  )
-
-  // On Vercel/serverless, respond quickly but keep work alive until completion.
-  if (process.env.VERCEL) {
-    waitUntil(work)
-  } else {
-    // Local dev: keep the Node process from exiting mid-work (still best-effort).
-    void work
+    const msg = e instanceof Error ? e.message : String(e)
+    void logWebhookIngest({
+      strava_activity_id: activityId,
+      strava_owner_id: ownerId ?? null,
+      stage: 'error',
+      detail: 'processNewActivity threw',
+      error_message: msg,
+    })
   }
 
   return NextResponse.json({ ok: true })
@@ -67,6 +134,13 @@ async function processNewActivity(activityId: number, ownerId?: number) {
 
       if (tokenRow?.athlete_id && tokenRow.athlete_id !== ownerId) {
         console.log(`Ignoring webhook for owner_id=${ownerId} (expected athlete_id=${tokenRow.athlete_id})`)
+        void logWebhookIngest({
+          strava_activity_id: activityId,
+          strava_owner_id: ownerId ?? null,
+          stage: 'skipped_owner',
+          detail: 'owner_id mismatch',
+          meta: { expected_athlete_id: tokenRow.athlete_id, got_owner_id: ownerId },
+        })
         return
       }
     }
@@ -74,6 +148,13 @@ async function processNewActivity(activityId: number, ownerId?: number) {
     // Only process Chilli activities
     if (!isChilliActivity(fullActivity.name)) {
       console.log(`Skipping non-Chilli activity: ${fullActivity.name}`)
+      void logWebhookIngest({
+        strava_activity_id: activityId,
+        strava_owner_id: ownerId ?? null,
+        stage: 'skipped_filter',
+        detail: 'not_chilli_activity',
+        meta: { name: fullActivity.name },
+      })
       return
     }
 
@@ -87,7 +168,23 @@ async function processNewActivity(activityId: number, ownerId?: number) {
 
     if (existingEntry) {
       console.log(`Journal entry already exists for activity ${activityId}, skipping`)
+      void logWebhookIngest({
+        strava_activity_id: activityId,
+        strava_owner_id: ownerId ?? null,
+        stage: 'skipped_duplicate_journal',
+        detail: 'journal_entries row exists',
+      })
       return
+    }
+
+    const { data: existingActivity } = await supabaseAdmin
+      .from('activities')
+      .select('id')
+      .eq('strava_id', activityId)
+      .maybeSingle()
+
+    if (existingActivity) {
+      console.warn(`Activity ${activityId} exists in DB but journal is missing — generating journal`)
     }
 
     const totalPhotoCount = Number(fullActivity.total_photo_count || 0)
@@ -123,14 +220,23 @@ async function processNewActivity(activityId: number, ownerId?: number) {
       map_polyline: fullActivity.map?.summary_polyline || null,
     }
 
-    // Save activity
+    const hadActivityBefore = !!existingActivity
+
     const { error: actError } = await supabaseAdmin
       .from('activities')
       .upsert(activityRecord)
     if (actError) throw actError
 
-    // Generate journal entry
-    const entry = await generateJournalEntry(activityRecord as any, undefined, photoUrls)
+    let entry: Awaited<ReturnType<typeof generateJournalEntry>>
+    try {
+      // Generate journal entry
+      entry = await generateJournalEntry(activityRecord as any, undefined, photoUrls)
+    } catch (e) {
+      if (!hadActivityBefore) {
+        await supabaseAdmin.from('activities').delete().eq('id', fullActivity.id)
+      }
+      throw e
+    }
 
     const { error: entryError } = await supabaseAdmin
       .from('journal_entries')
@@ -141,9 +247,23 @@ async function processNewActivity(activityId: number, ownerId?: number) {
         tags: entry.tags,
         mood: entry.mood,
       })
-    if (entryError) throw entryError
+    if (entryError) {
+      // If we just created the activity row and journal generation/insert failed, roll back the activity
+      // so a future webhook retry can try again (avoids "activity exists but no journal" orphans).
+      if (!hadActivityBefore) {
+        await supabaseAdmin.from('activities').delete().eq('id', fullActivity.id)
+      }
+      throw entryError
+    }
 
     console.log(`✓ Auto-generated entry for new Chilli activity: "${entry.title}" [${entry.mood}]`)
+    void logWebhookIngest({
+      strava_activity_id: activityId,
+      strava_owner_id: ownerId ?? null,
+      stage: 'success',
+      detail: 'journal_created',
+      meta: { title: entry.title, mood: entry.mood },
+    })
   } catch (e) {
     console.error('Error processing new activity:', e)
     throw e

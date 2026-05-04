@@ -8,13 +8,13 @@
     "start": "next start",
     "lint": "next lint",
     "import": "npx ts-node --project tsconfig.scripts.json scripts/historicalImport.ts",
-    "backfill:entries": "npx ts-node --project tsconfig.scripts.json scripts/backfillJournalHeaders.ts"
+    "backfill:entries": "npx ts-node --project tsconfig.scripts.json scripts/backfillJournalHeaders.ts",
+    "repair:journals": "npx ts-node --project tsconfig.scripts.json scripts/repairMissingJournalEntries.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",
     "@supabase/supabase-js": "^2.39.0",
     "@types/dotenv": "^6.1.1",
-    "@vercel/functions": "^3.5.0",
     "dotenv": "^17.4.2",
     "next": "14.1.0",
     "react": "^18",

@@ -50,6 +50,24 @@ create table if not exists strava_tokens (
   constraint single_row check (id = 1)
 );
 
+-- Webhook / ingestion audit log (append-only; query in Supabase when Vercel logs expire)
+create table if not exists webhook_ingest_logs (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  strava_activity_id bigint,
+  strava_owner_id bigint,
+  stage text not null,
+  detail text,
+  meta jsonb,
+  error_message text
+);
+
+create index if not exists webhook_ingest_logs_created_at_idx on webhook_ingest_logs(created_at desc);
+create index if not exists webhook_ingest_logs_activity_idx on webhook_ingest_logs(strava_activity_id);
+
+alter table webhook_ingest_logs enable row level security;
+-- Inserts use SUPABASE_SERVICE_ROLE_KEY (bypasses RLS). No anon/authenticated policies.
+
 -- Indexes
 create index if not exists activities_start_date_idx on activities(start_date desc);
 create index if not exists journal_entries_activity_id_idx on journal_entries(activity_id);
