@@ -10,6 +10,7 @@ import * as dotenv from 'dotenv'
 dotenv.config({ path: '.env.local' })
 
 import { createClient } from '@supabase/supabase-js'
+import { laDayBoundsUtc, laTodayYmd } from '../lib/laCalendar'
 import { isChilliActivity } from '../lib/strava'
 
 const supabaseAdmin = createClient(
@@ -17,47 +18,12 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-/**
- * Returns UTC ISO range [start, end) for the LA calendar day `ymd` (YYYY-MM-DD).
- * Uses the fact that representing "local midnight" as UTC requires knowing offset; we binary-search
- * the UTC instant that formats as 00:00 that day in LA (stable for our use).
- */
-function laDayBoundsUtc(ymd: string): { start: string; end: string } {
-  const [y, mo, d] = ymd.split('-').map(Number)
-  if (!y || !mo || !d) throw new Error(`Use --date YYYY-MM-DD`)
-
-  const target = `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-  let lo = Date.UTC(y, mo - 1, d - 1, 0, 0, 0)
-  let hi = Date.UTC(y, mo - 1, d + 1, 0, 0, 0)
-  let startMs = lo
-  for (let i = 0; i < 40; i++) {
-    const mid = Math.floor((lo + hi) / 2)
-    const la = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Los_Angeles',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(new Date(mid))
-    if (la < target) lo = mid + 1
-    else hi = mid
-  }
-  startMs = lo
-  const start = new Date(startMs)
-  const end = new Date(startMs + 24 * 60 * 60 * 1000)
-  return { start: start.toISOString(), end: end.toISOString() }
-}
-
 function parseArgs(): string {
   const argv = process.argv.slice(2)
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--date') return argv[++i] || ''
   }
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Los_Angeles',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date())
+  return laTodayYmd()
 }
 
 async function main() {

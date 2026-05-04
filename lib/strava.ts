@@ -87,8 +87,8 @@ export async function saveTokens(tokenData: {
   })
 }
 
-// Fetch all activities (paginated)
-export async function fetchAllActivities(accessToken: string, after?: number) {
+// Fetch all activities (paginated). `after` / `before` are epoch seconds (Strava API).
+export async function fetchAllActivities(accessToken: string, after?: number, before?: number) {
   const allActivities: any[] = []
   let page = 1
   const perPage = 100
@@ -98,7 +98,8 @@ export async function fetchAllActivities(accessToken: string, after?: number) {
       per_page: String(perPage),
       page: String(page),
     })
-    if (after) params.set('after', String(after))
+    if (after !== undefined && after !== null) params.set('after', String(after))
+    if (before !== undefined && before !== null) params.set('before', String(before))
 
     const resp = await fetch(`${BASE_URL}/athlete/activities?${params}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
