@@ -2,7 +2,9 @@
 
 import { useState } from 'react'
 import type { EntryWithStats } from '@/lib/supabase'
+import type { WalkHighlight } from '@/lib/highlightedWalks'
 import EntryCard from './EntryCard'
+import RecordSpotlights from './RecordSpotlights'
 import StatsDashboard from './StatsDashboard'
 
 type Props = {
@@ -10,9 +12,10 @@ type Props = {
   stats: any
   stravaConnected: boolean
   chartStartDates: string[]
+  recordWalks: WalkHighlight[]
 }
 
-export default function JournalClient({ initialEntries, stats, stravaConnected, chartStartDates }: Props) {
+export default function JournalClient({ initialEntries, stats, stravaConnected, chartStartDates, recordWalks }: Props) {
   const [view, setView] = useState<'journal' | 'stats'>('journal')
   const [filter, setFilter] = useState<string>('all')
 
@@ -118,6 +121,8 @@ export default function JournalClient({ initialEntries, stats, stravaConnected, 
 
         {view === 'journal' && (
           <>
+            <RecordSpotlights highlights={recordWalks} />
+
             {/* Mood filter */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
               {moods.map(mood => (

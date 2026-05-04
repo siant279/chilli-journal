@@ -35,14 +35,18 @@ export default function EntryCard({ entry }: { entry: EntryWithStats }) {
   ].filter(Boolean)
 
   return (
-    <article style={{
+    <article
+      id={`journal-entry-${entry.id}`}
+      style={{
       background: 'var(--cream)',
       border: '1px solid var(--border)',
       borderRadius: 16,
       overflow: 'hidden',
       marginBottom: 28,
       boxShadow: '0 2px 16px rgba(0,0,0,0.04)',
-    }}>
+      scrollMarginTop: 24,
+    }}
+    >
       {/* Photo */}
       {entry.photo_urls && entry.photo_urls.length > 0 && (
         <div style={{ position: 'relative' }}>

@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { EntryWithStats } from '@/lib/supabase'
 import JournalClient from '@/components/JournalClient'
 import { getValidAccessToken } from '@/lib/strava'
+import { getWalkHighlights } from '@/lib/highlightedWalks'
 
 /** New journal rows must show without redeploy; do not statically cache this page at build time. */
 export const dynamic = 'force-dynamic'
@@ -93,11 +94,12 @@ async function checkStravaConnected(): Promise<boolean> {
 }
 
 export default async function Home() {
-  const [entries, stats, stravaConnected, chartStartDates] = await Promise.all([
+  const [entries, stats, stravaConnected, chartStartDates, recordWalks] = await Promise.all([
     getEntries(),
     getStats(),
     checkStravaConnected(),
     getEntryStartDatesForChart(),
+    getWalkHighlights(supabaseAdmin),
   ])
 
   return (
@@ -106,6 +108,7 @@ export default async function Home() {
       stats={stats}
       stravaConnected={stravaConnected}
       chartStartDates={chartStartDates}
+      recordWalks={recordWalks}
     />
   )
 }
