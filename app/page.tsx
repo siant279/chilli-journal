@@ -3,6 +3,9 @@ import { EntryWithStats } from '@/lib/supabase'
 import JournalClient from '@/components/JournalClient'
 import { getValidAccessToken } from '@/lib/strava'
 
+/** New journal rows must show without redeploy; do not statically cache this page at build time. */
+export const dynamic = 'force-dynamic'
+
 async function getEntries(): Promise<EntryWithStats[]> {
   const { data, error } = await supabaseAdmin
     .from('entries_with_stats')
