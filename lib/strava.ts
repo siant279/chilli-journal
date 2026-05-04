@@ -119,13 +119,29 @@ export async function fetchAllActivities(accessToken: string, after?: number) {
   return allActivities
 }
 
+/** Non‑standard codes sometimes seen from Strava/CDN edges when upstream stalls (treat like transient). */
+function isTransientStravaActivityStatus(status: number): boolean {
+  return status === 408 || status === 425 || status === 429 || status === 597 || status >= 500
+}
+
 // Fetch a single activity with full details
 export async function fetchActivity(accessToken: string, activityId: number) {
-  const resp = await fetch(`${BASE_URL}/activities/${activityId}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  if (!resp.ok) throw new Error(`Strava activity fetch failed: ${resp.status}`)
-  return resp.json()
+  const maxAttempts = 4
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const resp = await fetch(`${BASE_URL}/activities/${activityId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (resp.ok) return resp.json()
+    if (attempt < maxAttempts - 1 && isTransientStravaActivityStatus(resp.status)) {
+      await sleep(400 * (attempt + 1))
+      continue
+    }
+    const body = await resp.text().catch(() => '')
+    throw new Error(
+      `Strava activity fetch failed: ${resp.status}${body ? ` — ${body.slice(0, 200)}` : ''}`.trim()
+    )
+  }
+  throw new Error('Strava activity fetch failed: exhausted retries')
 }
 
 // Fetch photos for an activity
