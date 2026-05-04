@@ -4,6 +4,14 @@
  *
  *   npm run repair:journals
  *   npm run repair:journals -- --since 2026-05-01 --limit 20 --dry-run
+ *
+ * Notes:
+ *   - Only fixes rows already in `activities` with no `journal_entries` row. Walks that never
+ *     imported (no activity row) need `npm run import` or Strava API — not this script.
+ *   - `--since YYYY-MM-DD` is interpreted as midnight on that calendar date in your machine's
+ *     local timezone (not UTC), so "last few days" matches what you expect.
+ *   - By default, names must pass isChilliActivity (contains "chilli" or "fi", case insensitive).
+ *     Use --no-name-filter only if you intentionally want every unmatched activity in range.
  */
 
 import * as dotenv from 'dotenv'
@@ -26,6 +34,7 @@ function parseArgs() {
     limit: Infinity as number,
     since: null as Date | null,
     sleepMs: 500,
+    noNameFilter: false,
   }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
@@ -35,9 +44,20 @@ function parseArgs() {
       if (!Number.isFinite(n) || n <= 0) throw new Error('--limit must be a positive number')
       out.limit = n
     } else if (a === '--since') {
-      const d = new Date(argv[++i])
-      if (Number.isNaN(d.getTime())) throw new Error('--since must be a parseable date')
-      out.since = d
+      const raw = argv[++i]
+      const localDay = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw)
+      if (localDay) {
+        const y = Number(localDay[1])
+        const mo = Number(localDay[2]) - 1
+        const day = Number(localDay[3])
+        out.since = new Date(y, mo, day, 0, 0, 0, 0)
+      } else {
+        const d = new Date(raw)
+        if (Number.isNaN(d.getTime())) throw new Error('--since must be a parseable date')
+        out.since = d
+      }
+    } else if (a === '--no-name-filter') {
+      out.noNameFilter = true
     } else if (a === '--sleep-ms') {
       const n = Number(argv[++i])
       if (!Number.isFinite(n) || n < 0) throw new Error('--sleep-ms must be a non-negative number')
@@ -47,9 +67,10 @@ function parseArgs() {
 Usage: npm run repair:journals -- [options]
 
 Options:
-  --since YYYY-MM-DD   Only consider activities on/after this local-date parse
+  --since YYYY-MM-DD   Only activities with start_date on/after local midnight that day
   --limit N            Process at most N missing rows
   --dry-run            Log only
+  --no-name-filter     Repair every activity missing a journal (ignore Chilli/Fi title filter)
   --sleep-ms N         Delay after each Claude call (default 500)
 `)
       process.exit(0)
@@ -109,8 +130,11 @@ async function loadJournaledActivityIds(): Promise<Set<number>> {
 }
 
 async function main() {
-  const { dryRun, limit, since, sleepMs } = parseArgs()
-  console.log(`Repair missing journals starting${dryRun ? ' [DRY RUN]' : ''}\n`)
+  const { dryRun, limit, since, sleepMs, noNameFilter } = parseArgs()
+  console.log(`Repair missing journals starting${dryRun ? ' [DRY RUN]' : ''}${noNameFilter ? ' [NO NAME FILTER]' : ''}\n`)
+  if (since) {
+    console.log(`--since effective: ${since.toISOString()} (${since.toString()})\n`)
+  }
 
   const accessToken = await getValidAccessToken()
   const journaled = await loadJournaledActivityIds()
@@ -118,7 +142,8 @@ async function main() {
 
   const pageSize = 200
   let repaired = 0,
-    skipped = 0,
+    skippedHasJournal = 0,
+    skippedNameFilter = 0,
     scanned = 0
 
   outer: for (let from = 0; ; from += pageSize) {
@@ -131,17 +156,16 @@ async function main() {
     if (error) throw error
     const batch = data || []
     if (!batch.length) break
-
     for (const raw of batch) {
       scanned++
       const row = raw as any
       const activityId = Number(row.id)
       if (journaled.has(activityId)) {
-        skipped++
+        skippedHasJournal++
         continue
       }
-      if (!isChilliActivity(String(row.name))) {
-        skipped++
+      if (!noNameFilter && !isChilliActivity(String(row.name))) {
+        skippedNameFilter++
         continue
       }
 
@@ -181,7 +205,30 @@ async function main() {
     if (batch.length < pageSize) break
   }
 
-  console.log(`\nDone. repaired=${repaired} skipped=${skipped} scanned=${scanned}`)
+  const skippedTotal = skippedHasJournal + skippedNameFilter
+  console.log(`\nDone. repaired=${repaired} scanned=${scanned}`)
+  console.log(
+    `Skipped: ${skippedTotal} total (${skippedHasJournal} already have journal, ${skippedNameFilter} name filter [chilli/fi])`,
+  )
+  if (repaired === 0 && scanned === 0 && since) {
+    console.log(
+      `\nNo activity rows in Supabase with start_date >= --since. Either nothing was imported in that range, or dates/timezone don't overlap.`,
+    )
+  } else if (repaired === 0 && scanned === 0 && !since) {
+    console.log(`\nNo rows in the activities table. Run historical import (npm run import) first — repair only creates journals for existing activities.`)
+  } else if (repaired === 0 && skippedNameFilter > 0 && skippedHasJournal === 0) {
+    console.log(
+      `\nEvery activity in range is filtered out by title (need "chilli" or "fi" in the Strava name). Re-run with --no-name-filter if these walks should get journals anyway.`,
+    )
+  } else if (repaired === 0 && skippedHasJournal > 0 && skippedNameFilter === 0) {
+    console.log(
+      `\nEvery activity in range already has a journal row. If the site still looks empty, refresh/caching — or you're pointed at a different Supabase than production.`,
+    )
+  } else if (repaired === 0 && skippedHasJournal > 0 && skippedNameFilter > 0) {
+    console.log(
+      `\nNothing to repair: some walks already journaled; others don't match the name filter. Missing walks entirely? Run historical import — repair only adds journals for existing activity rows.`,
+    )
+  }
 }
 
 main().catch(e => {

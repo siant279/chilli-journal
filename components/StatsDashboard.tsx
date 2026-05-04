@@ -53,16 +53,19 @@ export default function StatsDashboard({ stats, entries }: Props) {
     return acc
   }, {})
 
-  // Monthly activity trend (last 12 months)
+  // Monthly activity trend (last 12 months). Labels include year so a rolling window
+  // (e.g. Jun '25 … May '26) is readable; counts match calendar month in local time.
   const now = new Date()
   const monthlyData = Array.from({ length: 12 }, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1)
-    const label = d.toLocaleDateString('en-US', { month: 'short' })
+    const y = d.getFullYear()
+    const m = d.getMonth()
+    const label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
     const count = entries.filter(e => {
       const ed = new Date(e.start_date)
-      return ed.getFullYear() === d.getFullYear() && ed.getMonth() === d.getMonth()
+      return ed.getFullYear() === y && ed.getMonth() === m
     }).length
-    return { label, count }
+    return { key: `${y}-${m}`, label, count }
   })
   const maxMonthly = Math.max(...monthlyData.map(m => m.count), 1)
 
@@ -96,8 +99,8 @@ export default function StatsDashboard({ stats, entries }: Props) {
           ADVENTURES PER MONTH (LAST 12 MONTHS)
         </h3>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 80 }}>
-          {monthlyData.map(({ label, count }) => (
-            <div key={label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+          {monthlyData.map(({ key, label, count }) => (
+            <div key={key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 0 }}>
               <div style={{ fontSize: 9, color: 'var(--muted)', fontFamily: "'Courier Prime', monospace" }}>
                 {count > 0 ? count : ''}
               </div>
