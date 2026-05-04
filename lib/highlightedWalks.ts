@@ -1,30 +1,9 @@
 import type { EntryWithStats } from '@/lib/supabase'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { haversineMeters } from '@/lib/geo'
+import { getHomeCoordsFromEnv } from '@/lib/homeCoords'
 
-/**
- * “Furthest from home” uses **only** your configured home (no hardcoded default).
- * Set in `.env.local` and Vercel: `HOME_LAT` and `HOME_LNG` (decimal degrees, e.g. 39.3260 -120.1850).
- * If either is missing/invalid, the furthest-from-home spotlight is omitted.
- */
-function homeCoordsFromEnv(): { lat: number; lng: number } | null {
-  const lat = Number(process.env.HOME_LAT)
-  const lng = Number(process.env.HOME_LNG)
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
-  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null
-  return { lat, lng }
-}
-
-/** Haversine distance in meters. */
-export function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371000
-  const toRad = (d: number) => (d * Math.PI) / 180
-  const φ1 = toRad(lat1)
-  const φ2 = toRad(lat2)
-  const Δφ = toRad(lat2 - lat1)
-  const Δλ = toRad(lng2 - lng1)
-  const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2
-  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-}
+export { haversineMeters } from '@/lib/geo'
 
 function tieDateMs(e: EntryWithStats): number {
   return new Date(e.start_date).getTime()
@@ -90,7 +69,7 @@ export async function getWalkHighlights(admin: SupabaseClient): Promise<WalkHigh
   const rows = await fetchAllEntriesWithStats(admin)
   if (rows.length === 0) return []
 
-  const home = homeCoordsFromEnv()
+  const home = getHomeCoordsFromEnv()
   const out: WalkHighlight[] = []
 
   const longest = pickMax(

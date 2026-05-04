@@ -4,6 +4,7 @@ import JournalClient from '@/components/JournalClient'
 import { getValidAccessToken } from '@/lib/strava'
 import type { WalkHighlight } from '@/lib/highlightedWalks'
 import { getWalkHighlights } from '@/lib/highlightedWalks'
+import { getHomeCoordsFromEnv } from '@/lib/homeCoords'
 
 /** Record holders older than the newest 100 posts still need a DOM anchor for spotlight links. */
 function mergeJournalWithRecords(journal: EntryWithStats[], records: WalkHighlight[]): EntryWithStats[] {
@@ -115,6 +116,7 @@ export default async function Home() {
   ])
 
   const entries = mergeJournalWithRecords(journalPage, recordWalks)
+  const homeCoords = getHomeCoordsFromEnv()
 
   return (
     <JournalClient
@@ -123,6 +125,7 @@ export default async function Home() {
       stravaConnected={stravaConnected}
       chartStartDates={chartStartDates}
       recordWalks={recordWalks}
+      homeCoords={homeCoords}
     />
   )
 }
