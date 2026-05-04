@@ -17,6 +17,25 @@ async function getEntries(): Promise<EntryWithStats[]> {
   return data || []
 }
 
+/** Full list of walk dates for the rolling 12‑month chart (not capped at 100 rows). */
+async function getEntryStartDatesForChart(): Promise<string[]> {
+  const cutoff = new Date()
+  cutoff.setMonth(cutoff.getMonth() - 14)
+  cutoff.setDate(1)
+  cutoff.setHours(0, 0, 0, 0)
+
+  const { data, error } = await supabaseAdmin
+    .from('entries_with_stats')
+    .select('start_date')
+    .gte('start_date', cutoff.toISOString())
+
+  if (error) {
+    console.error('Failed to fetch chart dates:', error)
+    return []
+  }
+  return (data ?? []).map(r => r.start_date)
+}
+
 async function getStats() {
   const { data: activities } = await supabaseAdmin
     .from('activities')
@@ -71,10 +90,11 @@ async function checkStravaConnected(): Promise<boolean> {
 }
 
 export default async function Home() {
-  const [entries, stats, stravaConnected] = await Promise.all([
+  const [entries, stats, stravaConnected, chartStartDates] = await Promise.all([
     getEntries(),
     getStats(),
     checkStravaConnected(),
+    getEntryStartDatesForChart(),
   ])
 
   return (
@@ -82,6 +102,7 @@ export default async function Home() {
       initialEntries={entries}
       stats={stats}
       stravaConnected={stravaConnected}
+      chartStartDates={chartStartDates}
     />
   )
 }

@@ -12,6 +12,8 @@ type Props = {
     seasons: Record<string, number>
   }
   entries: EntryWithStats[]
+  /** ISO walk timestamps for the last ~14 months — full set so the chart is not limited to the journal page’s 100 rows */
+  chartStartDates: string[]
 }
 
 const MOOD_COLORS: Record<string, string> = {
@@ -46,7 +48,7 @@ function StatBlock({ value, label, sub }: { value: string | number; label: strin
   )
 }
 
-export default function StatsDashboard({ stats, entries }: Props) {
+export default function StatsDashboard({ stats, entries, chartStartDates }: Props) {
   // Mood distribution
   const moodCounts = entries.reduce((acc: Record<string, number>, e) => {
     acc[e.mood] = (acc[e.mood] || 0) + 1
@@ -61,8 +63,8 @@ export default function StatsDashboard({ stats, entries }: Props) {
     const y = d.getFullYear()
     const m = d.getMonth()
     const label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
-    const count = entries.filter(e => {
-      const ed = new Date(e.start_date)
+    const count = chartStartDates.filter(s => {
+      const ed = new Date(s)
       return ed.getFullYear() === y && ed.getMonth() === m
     }).length
     return { key: `${y}-${m}`, label, count }

@@ -9,9 +9,10 @@ type Props = {
   initialEntries: EntryWithStats[]
   stats: any
   stravaConnected: boolean
+  chartStartDates: string[]
 }
 
-export default function JournalClient({ initialEntries, stats, stravaConnected }: Props) {
+export default function JournalClient({ initialEntries, stats, stravaConnected, chartStartDates }: Props) {
   const [view, setView] = useState<'journal' | 'stats'>('journal')
   const [filter, setFilter] = useState<string>('all')
 
@@ -112,7 +113,7 @@ export default function JournalClient({ initialEntries, stats, stravaConnected }
       <main style={{ maxWidth: 680, margin: '0 auto', padding: '28px 16px' }}>
 
         {view === 'stats' && stats && (
-          <StatsDashboard stats={stats} entries={initialEntries} />
+          <StatsDashboard stats={stats} entries={initialEntries} chartStartDates={chartStartDates} />
         )}
 
         {view === 'journal' && (
