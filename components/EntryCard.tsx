@@ -21,12 +21,24 @@ function formatDur(s: number) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`
 }
 
+function locationHeadline(city: string | null, country: string | null): string | null {
+  const parts = [city, country].filter(Boolean)
+  return parts.length ? parts.join(', ') : null
+}
+
 export default function EntryCard({ entry }: { entry: EntryWithStats }) {
   const m = MOOD[entry.mood] || MOOD.SOLID
   const date = new Date(entry.start_date)
   const dateStr = date.toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
   })
+  const timeStr = date.toLocaleTimeString('en-US', {
+    timeZone: 'America/Los_Angeles',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+  const locationStr = locationHeadline(entry.city, entry.country)
+  const stravaHref = `https://www.strava.com/activities/${entry.strava_id}`
 
   const stats = [
     fmt(entry.distance_meters, 'mi'),
@@ -122,7 +134,7 @@ export default function EntryCard({ entry }: { entry: EntryWithStats }) {
           {entry.title}
         </h2>
 
-        {/* Date + location + weather */}
+        {/* Date · time · location · weather · Strava */}
         <div style={{
           fontSize: 11, color: 'var(--muted)',
           fontFamily: "'Courier Prime', monospace",
@@ -130,10 +142,15 @@ export default function EntryCard({ entry }: { entry: EntryWithStats }) {
           display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center',
         }}>
           <span>{dateStr}</span>
-          {entry.city && <span>📍 {entry.city}</span>}
+          <span>{timeStr} PT</span>
+          {locationStr && (
+            <span title="Location">
+              📍 {locationStr}
+            </span>
+          )}
           {entry.weather_temp_c !== null && (
             <span>
-              {entry.weather_condition} · {entry.weather_temp_c}°C / {Math.round(entry.weather_temp_c * 9 / 5 + 32)}°F
+              {entry.weather_condition || 'Weather'} · {entry.weather_temp_c}°C / {Math.round(entry.weather_temp_c * 9 / 5 + 32)}°F
             </span>
           )}
           {entry.sport_type && (
@@ -144,6 +161,22 @@ export default function EntryCard({ entry }: { entry: EntryWithStats }) {
               {entry.sport_type}
             </span>
           )}
+          <a
+            href={stravaHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              fontWeight: 700,
+              color: 'var(--strava)',
+              textDecoration: 'none',
+              borderBottom: '1px solid rgba(252, 76, 2, 0.35)',
+            }}
+          >
+            View route on Strava ↗
+          </a>
         </div>
 
         {/* Entry text */}

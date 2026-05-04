@@ -158,6 +158,15 @@ export function buildEntryStatsHeader(activity: Activity): string {
     })
     lines.push(`Start: ${startStr} PT`)
   }
+  const locParts = [activity.city, activity.country].filter(Boolean)
+  if (locParts.length) {
+    lines.push(`Location: ${locParts.join(', ')}`)
+  }
+  if (activity.weather_temp_c !== null && activity.weather_temp_c !== undefined) {
+    const cond = activity.weather_condition || 'conditions recorded'
+    const f = Math.round(activity.weather_temp_c * (9 / 5) + 32)
+    lines.push(`Weather: ${cond} · ${activity.weather_temp_c}°C / ${f}°F`)
+  }
   if (activity.distance_meters) {
     const mi = (activity.distance_meters / 1609.34).toFixed(1)
     lines.push(`Distance: ${mi} mi`)

@@ -89,6 +89,7 @@ create or replace view entries_with_stats as
     a.total_elevation_gain,
     a.sport_type,
     a.city,
+    a.country,
     a.weather_temp_c,
     a.weather_condition,
     a.photo_urls,

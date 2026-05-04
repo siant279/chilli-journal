@@ -54,6 +54,7 @@ export type EntryWithStats = JournalEntry & {
   total_elevation_gain: number
   sport_type: string
   city: string | null
+  country: string | null
   weather_temp_c: number | null
   weather_condition: string | null
   photo_urls: string[] | null
