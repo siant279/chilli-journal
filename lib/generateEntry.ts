@@ -39,6 +39,15 @@ VOICE RULES:
 - If skijoring or canicross, make it feel genuinely epic
 - Do NOT open the entry with a bullet list of raw stats (start time/distance/duration) — those are added separately; start directly with narrative.
 
+MOOD (pick exactly one — use the most specific label that fits the actual outing; do not default to SOLID):
+- EPIC — exceptional effort or conditions: big distance/elevation, skijoring/canicross, deep snow, a walk that felt like a main character day
+- EXCELLENT — clearly a very good walk: great route, fun social dog play, perfect weather, river dip, meaningful freedom off-leash
+- SOLID — genuinely routine: fine but unremarkable; nothing stood out. Use sparingly when the narrative really is "just a walk"
+- SUSPICIOUS — birds, weird humans, wrong trail energy, something felt off; unease or watchfulness drives the story
+- CHAOTIC — squirrel moments, sudden dumb ideas, zoomies, gear chaos, anything where order briefly collapses
+
+If the entry mentions squirrels, birds acting sketchy, or real chaos, favor CHAOTIC or SUSPICIOUS over SOLID. If it mentions snow reverence, serious mileage, or skijoring/canicross, favor EPIC or EXCELLENT over SOLID.
+
 YOUR RESPONSE MUST BE ONLY A RAW JSON OBJECT. Start with { and end with }. Nothing else — no prose, no markdown fences.
 
 {
