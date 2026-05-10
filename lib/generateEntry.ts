@@ -1,9 +1,17 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { activityStartLocationLabel } from './geo'
 import { Activity } from './supabase'
-import { weatherSummaryForPrompt } from './weather'
+import {
+  ACTIVITY_TIMEZONE,
+  tempCToF,
+  timeOfDayLabelForPrompt,
+  weatherSummaryForPrompt,
+} from './weather'
 
 const client = new Anthropic()
+
+/** Strava may attach many photos; cap keeps prompts bounded (URLs are text-only hints, not vision). */
+const MAX_PHOTO_URLS_IN_PROMPT = 8
 
 const SYSTEM_PROMPT = `You are Chilli, a husky living in Truckee, California in the Sierra Nevada mountains. You write your own adventure journal.
 
@@ -35,7 +43,9 @@ VOICE RULES:
 - Smells are data and intelligence, not just sensation
 - Understatement is your friend
 - Moments of chaos (squirrel/bird) break through the refinement abruptly then you recover
+- If "Part of day" and walk start time (Pacific) are provided in the facts, you MUST treat them as authoritative for morning/afternoon/evening language — do not guess a different time of day
 - Reference weather naturally if provided — snow conditions get special reverence
+- When mentioning air temperature in narrative, use Fahrenheit (°F) only — never Celsius
 - Reference distance/elevation naturally — a big climb is worthy of note
 - If skijoring or canicross, make it feel genuinely epic
 - Do NOT open the entry with a bullet list of raw stats (start time/distance/duration) — those are added separately; start directly with narrative.
@@ -52,7 +62,7 @@ If the entry mentions squirrels, birds acting sketchy, or real chaos, favor CHAO
 YOUR RESPONSE MUST BE ONLY A RAW JSON OBJECT. Start with { and end with }. Nothing else — no prose, no markdown fences.
 
 {
-  "title": "5 words max, punchy, Chilli's POV",
+  "title": "5 words max, punchy, Chilli's POV — must anchor to THIS walk: weave in something specific from the facts (distance tier, elevation, weather quirk, part of day, place, activity type, or social beat). Avoid generic report titles and do not reuse the same title formula every entry (vary structure and imagery; skip vague defaults like 'A Good Walk' unless the facts are truly ordinary)",
   "entry": "2-3 paragraphs of narrative only. End with a paw rating: X/10 paws — one dry line of justification.",
   "tags": ["3-5 short specific tags"],
   "mood": "EPIC or EXCELLENT or SOLID or SUSPICIOUS or CHAOTIC"
@@ -92,17 +102,26 @@ export async function generateJournalEntry(
   const messages: Anthropic.MessageParam[] = []
   const userContent: Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam> = []
 
-  // Add photos if available (up to 2 to keep token usage reasonable)
   if (photoUrls && photoUrls.length > 0) {
-    // We pass photo URLs as text since we can't fetch them server-side easily
-    // For real implementation you'd fetch and base64 encode them
+    const urls = photoUrls.slice(0, MAX_PHOTO_URLS_IN_PROMPT)
+    const extra =
+      photoUrls.length > MAX_PHOTO_URLS_IN_PROMPT
+        ? ` (${photoUrls.length} total on Strava; showing first ${MAX_PHOTO_URLS_IN_PROMPT} URLs)`
+        : ''
     userContent.push({
       type: 'text',
-      text: `Photo(s) from this adventure: ${photoUrls.slice(0, 2).join(', ')}`,
+      text: `Photo URLs from this adventure${extra}:\n${urls.map((u, i) => `${i + 1}. ${u}`).join('\n')}`,
     })
   }
 
   let prompt = `Write Chilli's journal entry for this adventure:\n\n`
+  if (activity.start_date) {
+    const start = new Date(activity.start_date)
+    const startPt = formatActivityStartLocalPt(activity)
+    const part = timeOfDayLabelForPrompt(start)
+    prompt += `Part of day at walk start (${ACTIVITY_TIMEZONE}): ${part}\n`
+    if (startPt) prompt += `Walk start timestamp (local): ${startPt}\n`
+  }
   if (activity.sport_type) prompt += `Activity type: ${activity.sport_type}\n`
   if (miles) prompt += `Distance: ${miles} miles\n`
   if (elevFt && elevFt > 0) prompt += `Elevation gain: ${elevFt}ft\n`
@@ -113,18 +132,33 @@ export async function generateJournalEntry(
   if (humanNote) prompt += `\nMama's notes: "${humanNote}"\n`
   if (activity.start_date) {
     const date = new Date(activity.start_date)
-    const month = date.toLocaleString('en-US', { month: 'long' })
-    const season = getSeason(date)
+    const month = new Intl.DateTimeFormat('en-US', {
+      timeZone: ACTIVITY_TIMEZONE,
+      month: 'long',
+    }).format(date)
+    const season = getSeasonPacific(date)
     prompt += `\nSeason: ${season} (${month})\n`
   }
 
   userContent.push({ type: 'text', text: prompt })
   messages.push({ role: 'user', content: userContent })
 
+  /**
+   * Prompt caching: mark the static system block so bulk regenerations reuse it.
+   * Breakpoint must be on the last identical prefix — user facts live in `messages`, not here.
+   * `ttl: 1h` avoids 5m expiry mid-run on long backfills (slightly higher cache-write $ vs 5m).
+   * @see https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
+   */
   const response = await client.messages.create({
     model: 'claude-sonnet-4-20250514',
     max_tokens: 1000,
-    system: SYSTEM_PROMPT,
+    system: [
+      {
+        type: 'text',
+        text: SYSTEM_PROMPT,
+        cache_control: { type: 'ephemeral', ttl: '1h' },
+      },
+    ],
     messages,
   })
 
@@ -145,20 +179,27 @@ export async function generateJournalEntry(
   return parsed
 }
 
+/** Start timestamp in America/Los_Angeles for prompts and stat headers. */
+export function formatActivityStartLocalPt(activity: Activity): string | null {
+  if (!activity.start_date) return null
+  const d = new Date(activity.start_date)
+  const startStr = d.toLocaleString('en-US', {
+    timeZone: ACTIVITY_TIMEZONE,
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+  return `${startStr} PT`
+}
+
 export function buildEntryStatsHeader(activity: Activity): string {
   const lines: string[] = []
-  if (activity.start_date) {
-    const d = new Date(activity.start_date)
-    const startStr = d.toLocaleString('en-US', {
-      timeZone: 'America/Los_Angeles',
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    })
-    lines.push(`Start: ${startStr} PT`)
+  const startPt = formatActivityStartLocalPt(activity)
+  if (startPt) {
+    lines.push(`Start: ${startPt}`)
   }
   const locLabel = activityStartLocationLabel(activity)
   if (locLabel) {
@@ -166,8 +207,7 @@ export function buildEntryStatsHeader(activity: Activity): string {
   }
   if (activity.weather_temp_c !== null && activity.weather_temp_c !== undefined) {
     const cond = activity.weather_condition || 'conditions recorded'
-    const f = Math.round(activity.weather_temp_c * (9 / 5) + 32)
-    lines.push(`Weather: ${cond} · ${activity.weather_temp_c}°C / ${f}°F`)
+    lines.push(`Weather: ${cond} · ${tempCToF(activity.weather_temp_c)}°F`)
   }
   if (activity.distance_meters) {
     const mi = (activity.distance_meters / 1609.34).toFixed(1)
@@ -196,8 +236,14 @@ function formatDuration(seconds: number): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`
 }
 
-function getSeason(date: Date): string {
-  const month = date.getMonth() + 1
+function getSeasonPacific(date: Date): string {
+  const month = parseInt(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: ACTIVITY_TIMEZONE,
+      month: 'numeric',
+    }).format(date),
+    10
+  )
   if (month >= 12 || month <= 2) return 'winter'
   if (month >= 3 && month <= 5) return 'spring'
   if (month >= 6 && month <= 8) return 'summer'

@@ -1,5 +1,6 @@
 import type { EntryWithStats } from '@/lib/supabase'
 import { activityStartLocationLabel } from '@/lib/geo'
+import { tempCToF } from '@/lib/weather'
 
 const MOOD: Record<string, { emoji: string; color: string; border: string; label: string }> = {
   EPIC:       { emoji: '🐺', color: '#5b21b6', border: '#7c3aed', label: 'EPIC' },
@@ -146,7 +147,7 @@ export default function EntryCard({ entry }: { entry: EntryWithStats }) {
           )}
           {entry.weather_temp_c !== null && (
             <span>
-              {entry.weather_condition || 'Weather'} · {entry.weather_temp_c}°C / {Math.round(entry.weather_temp_c * 9 / 5 + 32)}°F
+              {entry.weather_condition || 'Weather'} · {tempCToF(entry.weather_temp_c)}°F
             </span>
           )}
           {entry.sport_type && (
