@@ -167,16 +167,35 @@ export async function fetchActivity(accessToken: string, activityId: number) {
 
 // Fetch photos for an activity
 export async function fetchActivityPhotos(accessToken: string, activityId: number): Promise<string[]> {
-  try {
-    const resp = await fetch(`${BASE_URL}/activities/${activityId}/photos?photo_sources=true&size=1200`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    })
-    if (!resp.ok) return []
-    const photos = await resp.json()
-    return photos.map((p: any) => p.urls?.['1200'] || p.urls?.['600'] || '').filter(Boolean)
-  } catch {
-    return []
+  const maxAttempts = 8
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const resp = await fetch(`${BASE_URL}/activities/${activityId}/photos?photo_sources=true&size=1200`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+      if (resp.ok) {
+        const photos = await resp.json()
+        return photos.map((p: any) => p.urls?.['1200'] || p.urls?.['600'] || '').filter(Boolean)
+      }
+      if (resp.status === 429 && attempt < maxAttempts - 1) {
+        const ra = resp.headers.get('Retry-After')
+        const waitSec = ra ? Math.min(Math.max(parseInt(ra, 10) || 60, 30), 900) : 60 + attempt * 45
+        console.warn(
+          `Strava 429 on activity ${activityId} photos — sleeping ${waitSec}s (attempt ${attempt + 1}/${maxAttempts})`
+        )
+        await sleep(waitSec * 1000)
+        continue
+      }
+      return []
+    } catch {
+      if (attempt < maxAttempts - 1) {
+        await sleep(5000 * (attempt + 1))
+        continue
+      }
+      return []
+    }
   }
+  return []
 }
 
 /**

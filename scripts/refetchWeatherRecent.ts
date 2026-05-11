@@ -7,6 +7,7 @@
  *   npm run refetch:weather -- --days 14
  *   npm run refetch:weather -- --dry-run
  *   npm run refetch:weather -- --regenerate --refresh-photos
+ *   npm run refetch:weather -- --verbose --progress-every 10
  */
 
 import * as dotenv from 'dotenv'
@@ -14,7 +15,7 @@ dotenv.config({ path: '.env.local' })
 
 import { createClient } from '@supabase/supabase-js'
 import { buildEntryStatsHeader, generateJournalEntry } from '../lib/generateEntry'
-import { normalizeStartLatLng } from '../lib/geo'
+import { resolveWeatherCoords } from '../lib/geo'
 import { getHomeCoordsFromEnv } from '../lib/homeCoords'
 import { stripLeadingStatsHeader } from '../lib/journalHeaderReflow'
 import type { Activity } from '../lib/supabase'
@@ -30,6 +31,19 @@ function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
+function isoNow() {
+  return new Date().toISOString()
+}
+
+function fmtDuration(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return '—'
+  const s = Math.round(ms / 1000)
+  if (s < 60) return `${s}s`
+  const m = Math.floor(s / 60)
+  const r = s % 60
+  return r ? `${m}m ${r}s` : `${m}m`
+}
+
 function parseArgs() {
   const argv = process.argv.slice(2)
   const out = {
@@ -39,8 +53,13 @@ function parseArgs() {
     refreshPhotos: false,
     openMeteoSleepMs: 200,
     claudeSleepMs: 500,
-    stravaSleepMs: 400,
+    /** Strava: ~100 req / 15 min — default spacing safe for bulk photo refresh. */
+    stravaSleepMs: 10_000,
     skipHeaders: false,
+    /** Log every activity/photo/journal line (noisy). */
+    verbose: false,
+    /** Progress + ETA every N rows (0 = off). */
+    progressEvery: 25,
   }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
@@ -49,9 +68,15 @@ function parseArgs() {
       if (!Number.isFinite(n) || n <= 0) throw new Error('--days must be a positive number')
       out.days = n
     } else if (a === '--dry-run') out.dryRun = true
+    else if (a === '--verbose' || a === '-v') out.verbose = true
     else if (a === '--regenerate') out.regenerate = true
     else if (a === '--refresh-photos') out.refreshPhotos = true
     else if (a === '--skip-headers') out.skipHeaders = true
+    else if (a === '--progress-every') {
+      const n = Number(argv[++i])
+      if (!Number.isFinite(n) || n < 0) throw new Error('--progress-every must be a non-negative number (0 disables)')
+      out.progressEvery = n
+    }
     else if (a === '--open-meteo-sleep-ms') {
       const n = Number(argv[++i])
       if (!Number.isFinite(n) || n < 0) throw new Error('--open-meteo-sleep-ms must be non-negative')
@@ -78,8 +103,10 @@ Usage: npm run refetch:weather -- [options]
   --refresh-photos       Re-fetch Strava activity photo URLs (all returned sizes 1200px) and
                          update activities.photo_urls. Counts toward Strava rate limits.
   --open-meteo-sleep-ms  Delay between Open-Meteo calls (default 200)
-  --strava-sleep-ms      Delay between Strava photo requests (default 400)
+  --strava-sleep-ms      Delay between Strava photo requests (default 10000 ≈ 100/15min limit)
   --claude-sleep-ms      Delay between Claude calls when --regenerate (default 500)
+  --verbose, -v          Log each activity weather source, skips, and journal context (very chatty)
+  --progress-every N     Log progress + ETA every N rows per phase (default 25, 0 = off)
 `)
       process.exit(0)
     } else {
@@ -228,9 +255,13 @@ async function fetchJournalsForActivities(activityIds: number[]): Promise<
 }
 
 /** All journals whose activity started on or after `cutoffIso` (for --regenerate window). */
-async function fetchJournalRowsSince(cutoffIso: string): Promise<ReturnType<typeof normalizeJournalRow>[]> {
+async function fetchJournalRowsSince(
+  cutoffIso: string,
+  opts?: { verbose?: boolean }
+): Promise<ReturnType<typeof normalizeJournalRow>[]> {
   const pageSize = 150
   const all: ReturnType<typeof normalizeJournalRow>[] = []
+  let page = 0
   for (let from = 0; ; from += pageSize) {
     const to = from + pageSize - 1
     const { data, error } = await supabaseAdmin
@@ -242,6 +273,10 @@ async function fetchJournalRowsSince(cutoffIso: string): Promise<ReturnType<type
 
     if (error) throw error
     const batch = data || []
+    page++
+    if (opts?.verbose) {
+      console.log(`[${isoNow()}] fetch journals page ${page}: +${batch.length} rows (total so far ${all.length + batch.length})`)
+    }
     for (const row of batch) {
       all.push(normalizeJournalRow(row as JournalRow))
     }
@@ -260,43 +295,113 @@ async function main() {
     claudeSleepMs,
     stravaSleepMs,
     skipHeaders,
+    verbose,
+    progressEvery,
   } = parseArgs()
   if (dryRun && regenerate) {
     console.error('Cannot combine --dry-run with --regenerate (Claude would still be billed).')
     process.exit(1)
   }
+  const runStarted = Date.now()
   const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000
   const cutoffIso = new Date(cutoffMs).toISOString()
 
+  console.log(
+    `[${isoNow()}] Run start | days=${days} regenerate=${regenerate} refreshPhotos=${refreshPhotos} ` +
+      `dryRun=${dryRun} verbose=${verbose} progressEvery=${progressEvery} ` +
+      `sleeps(ms): openMeteo=${openMeteoSleepMs} strava=${stravaSleepMs} claude=${claudeSleepMs}`
+  )
   console.log(
     `Refetch: last ${days} days (start_date >= ${cutoffIso})` +
       `${refreshPhotos ? ' + Strava photos' : ''}${dryRun ? ' [DRY RUN]' : ''}\n`
   )
 
   const activities = await fetchActivitiesSince(cutoffIso)
-  console.log(`Loaded ${activities.length} activities in window\n`)
+  console.log(
+    `[${isoNow()}] Loaded ${activities.length} activities in window (${fmtDuration(Date.now() - runStarted)} elapsed)`
+  )
+  if (verbose && activities.length) {
+    const newest = activities[0]
+    const oldest = activities[activities.length - 1]
+    console.log(
+      `  activity date range: ${oldest?.start_date ?? '?'} … ${newest?.start_date ?? '?'} (list ordered newest-first)`
+    )
+  }
 
   const home = getHomeCoordsFromEnv()
+  console.log(
+    `[${isoNow()}] Coords fallback: HOME_LAT/HOME_LNG ${home ? `set (${home.lat}, ${home.lng})` : 'not set — home weather fallback disabled'}`
+  )
+
   let weatherUpdated = 0,
     weatherSkipped = 0,
     weatherFailed = 0,
-    noCoords = 0
+    noCoords = 0,
+    weatherUsedStart = 0,
+    weatherUsedPolyline = 0,
+    weatherUsedHome = 0,
+    startCoordsBackfilled = 0
 
   const activityIdsTouched: number[] = []
   /** Dry-run only: simulated weather after refetch (DB row is not updated yet). */
   const dryRunWeatherByActivityId = new Map<number, WeatherRow>()
 
-  for (const act of activities) {
-    const { lat, lng } = normalizeStartLatLng(act.start_lat, act.start_lng, home)
-    if (lat == null || lng == null) {
+  const weatherPassStarted = Date.now()
+  const totalActs = activities.length
+  for (let idx = 0; idx < activities.length; idx++) {
+    const act = activities[idx]
+    const wx = resolveWeatherCoords(
+      {
+        start_lat: act.start_lat,
+        start_lng: act.start_lng,
+        map_polyline: act.map_polyline,
+      },
+      home
+    )
+    if (!wx) {
       noCoords++
-      console.warn(`  ⚠ activity ${act.id}: no start coordinates, skip weather`)
+      console.warn(
+        `  ⚠ activity ${act.id}: no coordinates (set HOME_LAT/HOME_LNG in .env.local for Truckee fallback), skip weather`
+      )
       continue
+    }
+    if (wx.source === 'start') weatherUsedStart++
+    if (wx.source === 'polyline') weatherUsedPolyline++
+    if (wx.source === 'home') weatherUsedHome++
+
+    if (verbose) {
+      const hasPoly = !!(act.map_polyline && act.map_polyline.length > 0)
+      console.log(
+        `  [weather] id=${act.id} src=${wx.source} start=${act.start_date} ` +
+          `stored=(${act.start_lat ?? '—'},${act.start_lng ?? '—'}) poly=${hasPoly} | ${(act.name || '').slice(0, 70)}`
+      )
+    }
+
+    if (
+      !dryRun &&
+      wx.source === 'polyline' &&
+      (act.start_lat == null || act.start_lng == null)
+    ) {
+      const { error: coordErr } = await supabaseAdmin
+        .from('activities')
+        .update({
+          start_lat: wx.lat,
+          start_lng: wx.lng,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', act.id)
+      if (coordErr) throw coordErr
+      act.start_lat = wx.lat
+      act.start_lng = wx.lng
+      startCoordsBackfilled++
+      if (verbose) {
+        console.log(`  [weather] id=${act.id} backfilled start_lat/start_lng from polyline → (${wx.lat}, ${wx.lng})`)
+      }
     }
 
     let weather: Awaited<ReturnType<typeof getHistoricalWeather>>
     try {
-      weather = await getHistoricalWeather(lat, lng, new Date(act.start_date))
+      weather = await getHistoricalWeather(wx.lat, wx.lng, new Date(act.start_date))
     } catch (e) {
       console.error(`  ✗ activity ${act.id}: Open-Meteo error`, e)
       weatherFailed++
@@ -312,6 +417,11 @@ async function main() {
 
     if (!weatherChanged(act, weather)) {
       weatherSkipped++
+      if (verbose) {
+        console.log(
+          `  [weather] id=${act.id} unchanged (Open-Meteo matches DB: ${weather.condition} ${weather.temp_c}°C)`
+        )
+      }
       await sleep(openMeteoSleepMs)
       continue
     }
@@ -331,16 +441,31 @@ async function main() {
     }
 
     console.log(
-      `${dryRun ? '  ◇ [dry-run]' : '  ✓'} activity ${act.id}: weather → ${weather.condition}, ${weather.temp_c}°C (was ${act.weather_temp_c ?? '—'}°C)`
+      `${dryRun ? '  ◇ [dry-run]' : '  ✓'} activity ${act.id}: weather → ${weather.condition}, ${weather.temp_c}°C (was ${act.weather_temp_c ?? '—'}°C) [${wx.source}]`
     )
     weatherUpdated++
     activityIdsTouched.push(act.id)
     if (dryRun) dryRunWeatherByActivityId.set(act.id, weather)
     await sleep(openMeteoSleepMs)
+
+    const n = idx + 1
+    if (progressEvery > 0 && totalActs > 0 && n % progressEvery === 0) {
+      const elapsed = Date.now() - weatherPassStarted
+      const rate = elapsed > 0 ? n / (elapsed / 1000) : 0
+      const remaining = totalActs - n
+      const etaMs = rate > 0 ? (remaining / rate) * 1000 : 0
+      console.log(
+        `[${isoNow()}] progress weather ${n}/${totalActs} (${Math.round((100 * n) / totalActs)}%) ` +
+          `phase_elapsed=${fmtDuration(elapsed)} eta≈${fmtDuration(etaMs)} | ` +
+          `updated=${weatherUpdated} skipped=${weatherSkipped} failed=${weatherFailed} no_coords=${noCoords}`
+      )
+    }
   }
 
   console.log(
-    `\nWeather pass: updated=${weatherUpdated} unchanged=${weatherSkipped} failed=${weatherFailed} no_coords=${noCoords}\n`
+    `[${isoNow()}] Weather pass done in ${fmtDuration(Date.now() - weatherPassStarted)} | ` +
+      `updated=${weatherUpdated} unchanged=${weatherSkipped} failed=${weatherFailed} no_coords=${noCoords}` +
+      ` | coords: start=${weatherUsedStart} polyline=${weatherUsedPolyline} home=${weatherUsedHome} start_backfilled=${startCoordsBackfilled}\n`
   )
 
   let photosUpdated = 0,
@@ -349,8 +474,10 @@ async function main() {
 
   if (refreshPhotos) {
     if (dryRun) {
+      const estMin = Math.round((activities.length * stravaSleepMs) / 60000)
       console.log(
-        `Photo pass [DRY RUN]: would request Strava /photos for ${activities.length} activities (use without --dry-run).\n`
+        `[${isoNow()}] Photo pass [DRY RUN]: would call Strava /photos × ${activities.length} ` +
+          `(~${estMin} min sleep-only at ${stravaSleepMs}ms/req; real time higher)\n`
       )
     } else {
       let accessToken: string
@@ -360,10 +487,21 @@ async function main() {
         console.error('Cannot --refresh-photos without Strava tokens. Connect Strava in the app first.', e)
         process.exit(1)
       }
-      console.log(`Photo pass: Strava /activities/{id}/photos for ${activities.length} activities\n`)
+      const photoPassStarted = Date.now()
+      const estMin = Math.round((activities.length * stravaSleepMs) / 60000)
+      console.log(
+        `[${isoNow()}] Photo pass start | activities=${activities.length} ` +
+          `stravaSleepMs=${stravaSleepMs} (~${estMin} min minimum from pacing alone)`
+      )
 
-      for (const act of activities) {
+      for (let pidx = 0; pidx < activities.length; pidx++) {
+        const act = activities[pidx]
         try {
+          if (verbose) {
+            console.log(
+              `  [photos] ${pidx + 1}/${activities.length} id=${act.id} had_stored=${(act.photo_urls?.length ?? 0) > 0} count=${act.photo_urls?.length ?? 0}`
+            )
+          }
           const urls = await fetchActivityPhotos(accessToken, act.id)
           const hadStored = (act.photo_urls?.length ?? 0) > 0
 
@@ -374,6 +512,7 @@ async function main() {
               )
               photosWarn++
             } else {
+              if (verbose) console.log(`  [photos] id=${act.id} empty response, no prior photos`)
               photosSkipped++
             }
             await sleep(stravaSleepMs)
@@ -381,6 +520,7 @@ async function main() {
           }
 
           if (photoUrlsEqual(act.photo_urls, urls)) {
+            if (verbose) console.log(`  [photos] id=${act.id} unchanged (${urls.length} URLs)`)
             photosSkipped++
             await sleep(stravaSleepMs)
             continue
@@ -402,10 +542,24 @@ async function main() {
           photosWarn++
         }
         await sleep(stravaSleepMs)
+
+        const n = pidx + 1
+        if (progressEvery > 0 && activities.length > 0 && n % progressEvery === 0) {
+          const elapsed = Date.now() - photoPassStarted
+          const rate = elapsed > 0 ? n / (elapsed / 1000) : 0
+          const remaining = activities.length - n
+          const etaMs = rate > 0 ? (remaining / rate) * 1000 : 0
+          console.log(
+            `[${isoNow()}] progress photos ${n}/${activities.length} (${Math.round((100 * n) / activities.length)}%) ` +
+              `phase_elapsed=${fmtDuration(elapsed)} eta≈${fmtDuration(etaMs)} | ` +
+              `updated=${photosUpdated} skipped=${photosSkipped} issues=${photosWarn}`
+          )
+        }
       }
 
       console.log(
-        `\nPhoto pass: updated=${photosUpdated} unchanged_or_empty=${photosSkipped} issues=${photosWarn}\n`
+        `[${isoNow()}] Photo pass done in ${fmtDuration(Date.now() - photoPassStarted)} | ` +
+          `updated=${photosUpdated} unchanged_or_empty=${photosSkipped} issues=${photosWarn}\n`
       )
     }
   }
@@ -424,12 +578,15 @@ async function main() {
     return
   }
 
+  console.log(
+    `[${isoNow()}] Loading journal rows (${regenerate ? 'full window' : 'weather-touched activities only'})…`
+  )
   const journalRows = regenerate
-    ? await fetchJournalRowsSince(cutoffIso)
+    ? await fetchJournalRowsSince(cutoffIso, { verbose })
     : await fetchJournalsForActivities(activityIdsTouched)
 
   console.log(
-    `${regenerate ? 'Journal rows in window (regenerate all)' : 'Journal rows for touched activities'}: ${journalRows.length}\n`
+    `[${isoNow()}] ${regenerate ? 'Journal rows in window (regenerate all)' : 'Journal rows for touched activities'}: ${journalRows.length}\n`
   )
 
   let headersUpdated = 0,
@@ -437,7 +594,11 @@ async function main() {
     regenUpdated = 0,
     journalErrors = 0
 
-  for (const row of journalRows) {
+  const journalPassStarted = Date.now()
+  const totalJournals = journalRows.length
+
+  for (let jidx = 0; jidx < journalRows.length; jidx++) {
+    const row = journalRows[jidx]
     try {
       const activity = row.activity
       if (!activity) {
@@ -446,12 +607,29 @@ async function main() {
         continue
       }
 
+      if (verbose) {
+        const wx = resolveWeatherCoords(
+          {
+            start_lat: activity.start_lat,
+            start_lng: activity.start_lng,
+            map_polyline: activity.map_polyline,
+          },
+          home
+        )
+        console.log(
+          `  [journal] ${jidx + 1}/${totalJournals} entry=${row.id} activity=${row.activity_id} ` +
+            `start=${activity.start_date} photos=${activity.photo_urls?.length ?? 0} ` +
+            `weather_coord_src=${wx?.source ?? 'none'} old_title=${JSON.stringify(row.title)}`
+        )
+      }
+
       const activityForAi =
         dryRun && dryRunWeatherByActivityId.has(row.activity_id)
           ? activityWithRefetchedWeather(activity, dryRunWeatherByActivityId.get(row.activity_id)!)
           : activity
 
       if (regenerate) {
+        const t0 = Date.now()
         const photoUrls =
           activity.photo_urls && activity.photo_urls.length > 0 ? activity.photo_urls : undefined
         const generated = await generateJournalEntry(
@@ -459,6 +637,7 @@ async function main() {
           row.human_note || undefined,
           photoUrls
         )
+        const genMs = Date.now() - t0
 
         if (!dryRun) {
           const { error } = await supabaseAdmin
@@ -473,15 +652,30 @@ async function main() {
           if (error) throw error
         }
         console.log(
-          `${dryRun ? '  ◇ [dry-run]' : '  ✓'} journal ${row.id}: ${dryRun ? 'would regenerate' : 'regenerated'} "${generated.title}"`
+          `${dryRun ? '  ◇ [dry-run]' : '  ✓'} journal ${row.id}: ${dryRun ? 'would regenerate' : 'regenerated'} "${generated.title}" ` +
+            `[${genMs}ms claude] mood ${generated.mood}`
         )
         regenUpdated++
         await sleep(claudeSleepMs)
+
+        const n = jidx + 1
+        if (progressEvery > 0 && totalJournals > 0 && n % progressEvery === 0) {
+          const elapsed = Date.now() - journalPassStarted
+          const rate = elapsed > 0 ? n / (elapsed / 1000) : 0
+          const remaining = totalJournals - n
+          const etaMs = rate > 0 ? (remaining / rate) * 1000 : 0
+          console.log(
+            `[${isoNow()}] progress journals ${n}/${totalJournals} (${Math.round((100 * n) / totalJournals)}%) ` +
+              `phase_elapsed=${fmtDuration(elapsed)} eta≈${fmtDuration(etaMs)} | ` +
+              `regenerated=${regenUpdated} errors=${journalErrors}`
+          )
+        }
         continue
       }
 
       const header = buildEntryStatsHeader(activityForAi)
       if (!header) {
+        if (verbose) console.log(`  [journal] ${row.id}: skip header (empty stats block)`)
         headersSkipped++
         continue
       }
@@ -491,6 +685,7 @@ async function main() {
       const newEntry = `${header}\n\n${body}`.trimEnd()
 
       if (newEntry === row.entry.trimEnd()) {
+        if (verbose) console.log(`  [journal] ${row.id}: header already matches DB`)
         headersSkipped++
         continue
       }
@@ -504,15 +699,32 @@ async function main() {
       )
       headersUpdated++
     } catch (e) {
-      console.error(`✗ journal ${row.id}:`, e)
+      console.error(`[${isoNow()}] ✗ journal ${row.id} activity_id=${row.activity_id}:`, e)
       journalErrors++
     }
+
+    const n = jidx + 1
+    if (!regenerate && progressEvery > 0 && totalJournals > 0 && n % progressEvery === 0) {
+      const elapsed = Date.now() - journalPassStarted
+      const rate = elapsed > 0 ? n / (elapsed / 1000) : 0
+      const remaining = totalJournals - n
+      const etaMs = rate > 0 ? (remaining / rate) * 1000 : 0
+      console.log(
+        `[${isoNow()}] progress headers ${n}/${totalJournals} phase_elapsed=${fmtDuration(elapsed)} eta≈${fmtDuration(etaMs)} | ` +
+          `updated=${headersUpdated} skipped=${headersSkipped} errors=${journalErrors}`
+      )
+    }
+  }
+
+  if (totalJournals > 0) {
+    console.log(`[${isoNow()}] Journal phase done in ${fmtDuration(Date.now() - journalPassStarted)}`)
   }
 
   const headerUpdatedLabel = dryRun ? 'journal_headers_would_update' : 'journal_headers_updated'
   const photoSummary = refreshPhotos ? ` photos_refreshed=${photosUpdated}` : ''
+  const wall = fmtDuration(Date.now() - runStarted)
   console.log(
-    `\nDone. weather_rows_${dryRun ? 'would_update' : 'updated'}=${weatherUpdated}${photoSummary} ` +
+    `\n[${isoNow()}] Done (wall ${wall}). weather_rows_${dryRun ? 'would_update' : 'updated'}=${weatherUpdated}${photoSummary} ` +
       (regenerate
         ? `claude_regenerated=${regenUpdated} journal_errors=${journalErrors}`
         : `${headerUpdatedLabel}=${headersUpdated} journal_headers_unchanged=${headersSkipped} journal_errors=${journalErrors}`)

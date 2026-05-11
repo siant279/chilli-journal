@@ -22,7 +22,7 @@ import {
 import { laDayBoundsUtc, laTodayYmd } from '../lib/laCalendar'
 import { getHistoricalWeather } from '../lib/weather'
 import { generateJournalEntry } from '../lib/generateEntry'
-import { normalizeStartLatLng } from '../lib/geo'
+import { firstLatLngFromEncodedPolyline, normalizeStartLatLng, resolveWeatherCoords } from '../lib/geo'
 import { getHomeCoordsFromEnv } from '../lib/homeCoords'
 import { resolveActivityPlaceNames } from '../lib/reverseGeocode'
 
@@ -160,10 +160,24 @@ async function main() {
       const rawLat = activity.start_latlng?.[0]
       const rawLng = activity.start_latlng?.[1]
       const home = getHomeCoordsFromEnv()
-      const { lat, lng } = normalizeStartLatLng(rawLat, rawLng, home)
+      const poly = activity.map?.summary_polyline ?? null
+      const wx = resolveWeatherCoords(
+        { start_lat: rawLat, start_lng: rawLng, map_polyline: poly },
+        home
+      )
       let weather = null
-      if (lat != null && lng != null) {
-        weather = await getHistoricalWeather(lat, lng, new Date(activity.start_date))
+      if (wx) {
+        weather = await getHistoricalWeather(wx.lat, wx.lng, new Date(activity.start_date))
+      }
+      const normalized = normalizeStartLatLng(rawLat, rawLng, home)
+      let lat = normalized.lat
+      let lng = normalized.lng
+      if (lat == null || lng == null) {
+        const fromPoly = firstLatLngFromEncodedPolyline(poly)
+        if (fromPoly) {
+          lat = fromPoly.lat
+          lng = fromPoly.lng
+        }
       }
 
       const { data: existingAct } = await supabaseAdmin

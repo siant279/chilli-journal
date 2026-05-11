@@ -52,6 +52,68 @@ export function normalizeStartLatLng(
   return { lat: a, lng: b }
 }
 
+/** Google-encoded polyline (Strava `summary_polyline`): first route point as WGS84 degrees. */
+export function firstLatLngFromEncodedPolyline(encoded: string | null | undefined): {
+  lat: number
+  lng: number
+} | null {
+  if (encoded == null || typeof encoded !== 'string') return null
+  const s = encoded.trim()
+  if (!s.length) return null
+  try {
+    let index = 0
+    let lat = 0
+    let lng = 0
+    let result = 0
+    let shift = 0
+    let b: number
+    do {
+      b = s.charCodeAt(index++) - 63
+      result |= (b & 0x1f) << shift
+      shift += 5
+    } while (b >= 0x20)
+    const dlat = (result & 1) !== 0 ? ~(result >> 1) : result >> 1
+    lat += dlat
+    result = 0
+    shift = 0
+    do {
+      b = s.charCodeAt(index++) - 63
+      result |= (b & 0x1f) << shift
+      shift += 5
+    } while (b >= 0x20)
+    const dlng = (result & 1) !== 0 ? ~(result >> 1) : result >> 1
+    lng += dlng
+    return { lat: lat * 1e-5, lng: lng * 1e-5 }
+  } catch {
+    return null
+  }
+}
+
+export type WeatherCoordSource = 'start' | 'polyline' | 'home'
+
+/** Coordinates for Open-Meteo / weather: stored start → first polyline point → home (if set). */
+export function resolveWeatherCoords(
+  input: {
+    start_lat: number | null | undefined
+    start_lng: number | null | undefined
+    map_polyline: string | null | undefined
+  },
+  home: { lat: number; lng: number } | null | undefined
+): { lat: number; lng: number; source: WeatherCoordSource } | null {
+  const normalized = normalizeStartLatLng(input.start_lat, input.start_lng, home ?? null)
+  if (normalized.lat !== null && normalized.lng !== null) {
+    return { lat: normalized.lat, lng: normalized.lng, source: 'start' }
+  }
+  const fromPoly = firstLatLngFromEncodedPolyline(input.map_polyline)
+  if (fromPoly) {
+    return { lat: fromPoly.lat, lng: fromPoly.lng, source: 'polyline' }
+  }
+  if (home && Number.isFinite(home.lat) && Number.isFinite(home.lng)) {
+    return { lat: home.lat, lng: home.lng, source: 'home' }
+  }
+  return null
+}
+
 /** Great-circle distance from home to the activity start, after {@link normalizeStartLatLng}. */
 export function haversineFromHome(
   home: { lat: number; lng: number },

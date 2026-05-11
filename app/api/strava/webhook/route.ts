@@ -4,7 +4,7 @@ import { getValidAccessToken, fetchActivity, fetchActivityPhotos, isChilliActivi
 import { getHistoricalWeather } from '@/lib/weather'
 import { generateJournalEntry } from '@/lib/generateEntry'
 import { logWebhookIngest } from '@/lib/webhookLog'
-import { normalizeStartLatLng } from '@/lib/geo'
+import { firstLatLngFromEncodedPolyline, normalizeStartLatLng, resolveWeatherCoords } from '@/lib/geo'
 import { getHomeCoordsFromEnv } from '@/lib/homeCoords'
 import { resolveActivityPlaceNames } from '@/lib/reverseGeocode'
 
@@ -198,11 +198,24 @@ async function processNewActivity(activityId: number, ownerId?: number) {
     const rawLat = fullActivity.start_latlng?.[0]
     const rawLng = fullActivity.start_latlng?.[1]
     const home = getHomeCoordsFromEnv()
-    const { lat, lng } = normalizeStartLatLng(rawLat, rawLng, home)
-    const weather =
-      lat != null && lng != null
-        ? await getHistoricalWeather(lat, lng, new Date(fullActivity.start_date))
-        : null
+    const poly = fullActivity.map?.summary_polyline ?? null
+    const wx = resolveWeatherCoords(
+      { start_lat: rawLat, start_lng: rawLng, map_polyline: poly },
+      home
+    )
+    const weather = wx
+      ? await getHistoricalWeather(wx.lat, wx.lng, new Date(fullActivity.start_date))
+      : null
+    const normalized = normalizeStartLatLng(rawLat, rawLng, home)
+    let lat = normalized.lat
+    let lng = normalized.lng
+    if (lat == null || lng == null) {
+      const fromPoly = firstLatLngFromEncodedPolyline(poly)
+      if (fromPoly) {
+        lat = fromPoly.lat
+        lng = fromPoly.lng
+      }
+    }
 
     const stravaCity = fullActivity.location_city || existingActivity?.city || null
     const stravaCountry = fullActivity.location_country || existingActivity?.country || null
