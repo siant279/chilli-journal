@@ -61,7 +61,7 @@ Filter: activity name contains "Chilli" OR "Fi" (case insensitive)
 | Hosting | Vercel |
 | Activity data | Strava API v3 |
 | Weather data | Open-Meteo (free, no API key) |
-| AI generation | Anthropic Claude (claude-sonnet-4-20250514) |
+| AI generation | Anthropic Claude (claude-sonnet-4-6) |
 
 ---
 
