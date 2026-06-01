@@ -49,6 +49,8 @@ Fi smart collar syncs walks to Strava with title:
 `"Sian took Chilli for a walk with her Fi Smart Collar"`
 Filter: activity name contains "Chilli" OR "Fi" (case insensitive)
 
+API client: direct OAuth + webhook; base URL `https://www.api-v3.strava.com` (see README for developer tier / subscription checklist).
+
 ---
 
 ## Tech Stack

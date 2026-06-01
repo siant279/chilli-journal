@@ -32,7 +32,20 @@ npm install
 1. Go to [strava.com/settings/api](https://www.strava.com/settings/api)
 2. Create an app (or use the existing one)
 3. Set **Authorization Callback Domain** to `localhost` for dev
-4. Note your Client ID (5931) and Client Secret
+4. Note your Client ID and Client Secret
+
+#### Strava Developer Program (account checklist)
+
+This app uses a **direct** OAuth + webhook integration (single athlete). It does not use club, segment explore, or third-party API intermediaries.
+
+**Owner action** — confirm in [API settings](https://www.strava.com/settings/api):
+
+- [ ] Note your **developer tier** (Standard vs Extended Access) and any transition email from Strava
+- [ ] **Standard Tier:** active **Strava subscription** required for API access (new developers from 2026-06-01; existing developers from **2026-06-30**). Extended Access Tier is not subject to this subscription requirement
+- [ ] Skim the current [API Agreement](https://www.strava.com/legal/api) and API Policy when linked from the dashboard
+- [ ] If you need higher test limits on Standard Tier, use dashboard **self-upgrade** (up to 10 athletes; this app only needs one)
+
+Fi collar → Strava sync is unchanged by these program updates. Optional [Strava MCP](https://www.strava.com) is for ad-hoc AI analysis of your own data; it does not replace this journal pipeline.
 
 ### 4. Environment variables
 
@@ -92,7 +105,7 @@ This will:
 Run this once to tell Strava where to send new activity events:
 
 ```bash
-curl -X POST https://www.strava.com/api/v3/push_subscriptions \
+curl -X POST https://www.api-v3.strava.com/push_subscriptions \
   -F client_id=5931 \
   -F client_secret=YOUR_CLIENT_SECRET \
   -F callback_url=https://YOUR_VERCEL_URL/api/strava/webhook \

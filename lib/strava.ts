@@ -2,7 +2,7 @@ import { supabaseAdmin } from './supabase'
 
 const STRAVA_CLIENT_ID = process.env.STRAVA_CLIENT_ID!
 const STRAVA_CLIENT_SECRET = process.env.STRAVA_CLIENT_SECRET!
-const BASE_URL = 'https://www.strava.com/api/v3'
+const BASE_URL = 'https://www.api-v3.strava.com'
 
 export function getStravaAuthUrl(redirectUri: string): string {
   const params = new URLSearchParams({
