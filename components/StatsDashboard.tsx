@@ -29,18 +29,18 @@ function StatBlock({ value, label, sub }: { value: string | number; label: strin
   return (
     <div style={{
       background: 'var(--cream)', border: '1px solid var(--border)',
-      borderRadius: 12, padding: '18px 16px', textAlign: 'center',
+        borderRadius: 'var(--radius-stat, var(--radius-button))', padding: '18px 16px', textAlign: 'center',
     }}>
       <div style={{
         fontSize: 28, fontWeight: 900, color: 'var(--ink)',
-        fontFamily: "'Courier Prime', monospace", lineHeight: 1,
+        fontFamily: 'var(--font-label)', lineHeight: 1,
       }}>{value}</div>
       <div style={{
         fontSize: 10, color: 'var(--muted)', letterSpacing: '0.1em',
-        fontFamily: "'Courier Prime', monospace", marginTop: 4,
+        fontFamily: 'var(--font-label)', marginTop: 4,
       }}>{label}</div>
       {sub && (
-        <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, fontFamily: "'Lora', serif", fontStyle: 'italic' }}>
+        <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, fontFamily: 'var(--font-sans)' }}>
           {sub}
         </div>
       )}
@@ -95,7 +95,7 @@ export default function StatsDashboard({ stats, entries, chartStartDates }: Prop
         borderRadius: 14, padding: '20px 20px 16px', marginBottom: 20,
       }}>
         <h3 style={{
-          fontFamily: "'Courier Prime', monospace", fontSize: 11,
+          fontFamily: 'var(--font-label)', fontSize: 11,
           letterSpacing: '0.1em', color: 'var(--muted)', marginBottom: 16,
         }}>
           ADVENTURES PER MONTH (LAST 12 MONTHS)
@@ -103,7 +103,7 @@ export default function StatsDashboard({ stats, entries, chartStartDates }: Prop
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 80 }}>
           {monthlyData.map(({ key, label, count }) => (
             <div key={key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 0 }}>
-              <div style={{ fontSize: 9, color: 'var(--muted)', fontFamily: "'Courier Prime', monospace" }}>
+              <div style={{ fontSize: 9, color: 'var(--muted)', fontFamily: 'var(--font-label)' }}>
                 {count > 0 ? count : ''}
               </div>
               <div style={{
@@ -113,7 +113,7 @@ export default function StatsDashboard({ stats, entries, chartStartDates }: Prop
                 opacity: count > 0 ? 0.8 : 0.4,
                 transition: 'height 0.3s ease',
               }} />
-              <div style={{ fontSize: 9, color: 'var(--muted)', fontFamily: "'Courier Prime', monospace" }}>
+              <div style={{ fontSize: 9, color: 'var(--muted)', fontFamily: 'var(--font-label)' }}>
                 {label}
               </div>
             </div>
@@ -128,7 +128,7 @@ export default function StatsDashboard({ stats, entries, chartStartDates }: Prop
           borderRadius: 14, padding: '18px 16px',
         }}>
           <h3 style={{
-            fontFamily: "'Courier Prime', monospace", fontSize: 11,
+            fontFamily: 'var(--font-label)', fontSize: 11,
             letterSpacing: '0.1em', color: 'var(--muted)', marginBottom: 14,
           }}>MOOD BREAKDOWN</h3>
           {Object.entries(moodCounts).sort((a, b) => b[1] - a[1]).map(([mood, count]) => (
@@ -141,7 +141,7 @@ export default function StatsDashboard({ stats, entries, chartStartDates }: Prop
               }} />
               <span style={{
                 fontSize: 10, color: 'var(--muted)',
-                fontFamily: "'Courier Prime', monospace",
+                fontFamily: 'var(--font-label)',
                 whiteSpace: 'nowrap',
               }}>
                 {mood} ({count})
@@ -155,7 +155,7 @@ export default function StatsDashboard({ stats, entries, chartStartDates }: Prop
           borderRadius: 14, padding: '18px 16px',
         }}>
           <h3 style={{
-            fontFamily: "'Courier Prime', monospace", fontSize: 11,
+            fontFamily: 'var(--font-label)', fontSize: 11,
             letterSpacing: '0.1em', color: 'var(--muted)', marginBottom: 14,
           }}>BY SEASON</h3>
           {Object.entries(stats.seasons).sort((a, b) => b[1] - a[1]).map(([season, count]) => (
@@ -167,7 +167,7 @@ export default function StatsDashboard({ stats, entries, chartStartDates }: Prop
               }} />
               <span style={{
                 fontSize: 10, color: 'var(--muted)',
-                fontFamily: "'Courier Prime', monospace",
+                fontFamily: 'var(--font-label)',
                 whiteSpace: 'nowrap',
               }}>
                 {season} ({count})
@@ -184,7 +184,7 @@ export default function StatsDashboard({ stats, entries, chartStartDates }: Prop
           borderRadius: 14, padding: '18px 16px',
         }}>
           <h3 style={{
-            fontFamily: "'Courier Prime', monospace", fontSize: 11,
+            fontFamily: 'var(--font-label)', fontSize: 11,
             letterSpacing: '0.1em', color: 'var(--muted)', marginBottom: 14,
           }}>ACTIVITY TYPES</h3>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -195,11 +195,11 @@ export default function StatsDashboard({ stats, entries, chartStartDates }: Prop
               }}>
                 <div style={{
                   fontSize: 18, fontWeight: 900, color: 'var(--ink)',
-                  fontFamily: "'Courier Prime', monospace",
+                  fontFamily: 'var(--font-label)',
                 }}>{count}</div>
                 <div style={{
                   fontSize: 10, color: 'var(--muted)',
-                  fontFamily: "'Courier Prime', monospace",
+                  fontFamily: 'var(--font-label)',
                   letterSpacing: '0.06em',
                 }}>{type.toUpperCase()}</div>
               </div>

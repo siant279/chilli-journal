@@ -1,33 +1,64 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700;1,900&family=Lora:ital,wght@0,400;0,600;1,400;1,600&family=Courier+Prime:wght@400;700&display=swap');
-
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --ink: #160800;
-  --ink-light: #3d2010;
-  --parchment: #f7f2e8;
-  --parchment-dark: #ede8da;
-  --cream: #fffdf7;
-  --border: #e0d4be;
-  --muted: #9a7a5a;
-  --accent: #5b21b6;
+  /* Sierra Sage theme */
+  --font-sans: var(--font-inter), system-ui, -apple-system, sans-serif;
+  --font-serif: var(--font-lora), Georgia, serif;
+  --font-label: var(--font-inter), system-ui, sans-serif;
+
+  --bg: #ffffff;
+  --surface: #fafbf9;
+  --surface-alt: #f3f6f4;
+  --ink: #141414;
+  --ink-light: #3d3d3d;
+  --muted: #6b7280;
+  --border: #e8ebe9;
+  --accent: #4a7c59;
+  --accent-soft: #e8f0ea;
   --strava: #fc4c02;
+  --shadow: 0 4px 24px rgba(20, 40, 30, 0.06);
+  --radius-card: 18px;
+  --radius-button: 12px;
+  --radius-pill: 999px;
+  --radius-stat: 12px;
+  --header-bg: #ffffff;
+  --header-text: #141414;
+  --header-sub: #6b7280;
+  --stat-value: #4a7c59;
+  --nav-bg: #f6f8f7;
+  --tag-bg: #e8f0ea;
+  --tag-text: #2d4a38;
+
+  /* Legacy aliases (components still reference these) */
+  --parchment: var(--bg);
+  --cream: var(--surface);
+  --parchment-dark: var(--surface-alt);
 }
 
 html { scroll-behavior: smooth; }
 
 body {
-  background: var(--parchment);
+  background: var(--bg);
   color: var(--ink);
-  font-family: 'Lora', serif;
+  font-family: var(--font-sans);
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: #e8d4ff;
+  background: var(--accent-soft);
+  color: var(--ink);
 }
 
-/* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--parchment-dark); }
+::-webkit-scrollbar-track { background: var(--surface-alt); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+@media (max-width: 768px) {
+  .journal-split {
+    grid-template-columns: 1fr !important;
+  }
+  .journal-split-list {
+    max-height: 280px !important;
+  }
+}

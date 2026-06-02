@@ -120,6 +120,28 @@ After this, every new Chilli walk will automatically:
 
 ---
 
+## Journal views
+
+Use **Layout** on the journal tab to switch between two views (saved in `localStorage`):
+
+- **Timeline** (default) — calendar + day timeline on the left, full entry on the right
+- **Pages** — six entries per page with prev/next; **Sort by** controls appear only in this view
+
+---
+
+## Design preview (theme comparison)
+
+Compare three visual directions before changing the live journal:
+
+```bash
+npm run dev
+# http://localhost:3000/design-preview
+```
+
+Options: **Sierra Sage** (portfolio-adjacent), **Warm Journal** (modernized parchment), **Trail Soft** (distinct stone/sky palette).
+
+---
+
 ## Project structure
 
 ```
