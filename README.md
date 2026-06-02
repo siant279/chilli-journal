@@ -105,7 +105,7 @@ This will:
 Run this once to tell Strava where to send new activity events:
 
 ```bash
-curl -X POST https://www.api-v3.strava.com/push_subscriptions \
+curl -X POST https://www.strava.com/api/v3/push_subscriptions \
   -F client_id=5931 \
   -F client_secret=YOUR_CLIENT_SECRET \
   -F callback_url=https://YOUR_VERCEL_URL/api/strava/webhook \
