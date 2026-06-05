@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Inter, Lora } from 'next/font/google'
+import SiteFooter from '@/components/SiteFooter'
 import './globals.css'
 
 const inter = Inter({
@@ -22,7 +23,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${lora.variable}`}>
-      <body>{children}</body>
+      <body>
+        {children}
+        <SiteFooter />
+      </body>
     </html>
   )
 }
