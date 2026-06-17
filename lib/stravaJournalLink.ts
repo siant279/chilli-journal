@@ -4,9 +4,20 @@ import { updateActivityDescription } from './strava'
 /** Marker line — used to replace prior journal links on re-sync. */
 export const STRAVA_JOURNAL_DESC_MARKER = "🐺 Chilli's Adventure Journal"
 
+/** Public journal base URL for links written to Strava (never localhost). */
 export function getJournalAppBaseUrl(): string {
-  const raw = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'http://localhost:3000'
-  return raw.replace(/\/$/, '')
+  const journalPublic = process.env.JOURNAL_PUBLIC_URL?.trim()
+  if (journalPublic) return journalPublic.replace(/\/$/, '')
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim()
+  if (appUrl && !/^https?:\/\/localhost(\b|:)/i.test(appUrl)) {
+    return appUrl.replace(/\/$/, '')
+  }
+
+  const vercel = process.env.VERCEL_URL?.trim()
+  if (vercel) return `https://${vercel.replace(/\/$/, '')}`
+
+  return 'https://chilli-journal.vercel.app'
 }
 
 export function buildJournalEntryUrl(journalEntryId: string): string {

@@ -64,6 +64,7 @@ Required values:
 - `SUPABASE_SERVICE_ROLE_KEY` — from Supabase project settings (keep secret!)
 - `ANTHROPIC_API_KEY` — from console.anthropic.com
 - `NEXT_PUBLIC_APP_URL` — `http://localhost:3000` for dev
+- `JOURNAL_PUBLIC_URL` — optional; URL used in Strava activity links. When unset, local backfills default to `https://chilli-journal.vercel.app` instead of localhost.
 
 ### 5. Connect Strava
 
