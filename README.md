@@ -73,6 +73,8 @@ npm run dev
 
 Visit [http://localhost:3000](http://localhost:3000) and click **Connect Strava**. This saves your OAuth tokens to Supabase.
 
+New journal entries automatically append a link back to the journal on each Strava activity description (title, mood emoji, and URL). This needs the `activity:write` scope — if you connected Strava before this feature shipped, click **Connect Strava** again once to grant write access.
+
 ### 6. Run historical import
 
 Once Strava is connected:
@@ -89,6 +91,14 @@ This will:
 - Save everything to Supabase
 
 **Note:** Depending on how many walks Chilli has, this may take a few minutes. It's safe to re-run — already-imported activities are skipped.
+
+To add journal links on Strava for entries that already exist:
+
+```bash
+npm run sync:strava-links -- --limit 50
+```
+
+Use `--dry-run` to preview; increase `--limit` or omit it for a full backfill (~400ms between activities for rate limits).
 
 ---
 

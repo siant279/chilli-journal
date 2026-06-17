@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getValidAccessToken, fetchActivity, fetchActivityPhotos, isChilliActivity } from '@/lib/strava'
+import { syncJournalLinkToStrava } from '@/lib/stravaJournalLink'
 import { getHistoricalWeather } from '@/lib/weather'
 import { generateJournalEntry } from '@/lib/generateEntry'
 import { logWebhookIngest } from '@/lib/webhookLog'
@@ -268,7 +269,7 @@ async function processNewActivity(activityId: number, ownerId?: number) {
       throw e
     }
 
-    const { error: entryError } = await supabaseAdmin
+    const { data: insertedEntry, error: entryError } = await supabaseAdmin
       .from('journal_entries')
       .insert({
         activity_id: fullActivity.id,
@@ -277,6 +278,8 @@ async function processNewActivity(activityId: number, ownerId?: number) {
         tags: entry.tags,
         mood: entry.mood,
       })
+      .select('id')
+      .single()
     if (entryError) {
       // If we just created the activity row and journal generation/insert failed, roll back the activity
       // so a future webhook retry can try again (avoids "activity exists but no journal" orphans).
@@ -286,13 +289,30 @@ async function processNewActivity(activityId: number, ownerId?: number) {
       throw entryError
     }
 
+    const stravaLink = await syncJournalLinkToStrava({
+      accessToken,
+      activityId: fullActivity.id,
+      journalEntryId: insertedEntry.id,
+      title: entry.title,
+      mood: entry.mood,
+      existingDescription: fullActivity.description,
+    })
+    if (!stravaLink.ok) {
+      console.warn(`Strava description link not updated for activity ${activityId}:`, stravaLink.error)
+    }
+
     console.log(`✓ Auto-generated entry for new Chilli activity: "${entry.title}" [${entry.mood}]`)
     void logWebhookIngest({
       strava_activity_id: activityId,
       strava_owner_id: ownerId ?? null,
       stage: 'success',
       detail: 'journal_created',
-      meta: { title: entry.title, mood: entry.mood },
+      meta: {
+        title: entry.title,
+        mood: entry.mood,
+        strava_link_synced: stravaLink.ok,
+        strava_link_skipped: stravaLink.ok ? undefined : stravaLink.skipped,
+      },
     })
   } catch (e) {
     console.error('Error processing new activity:', e)

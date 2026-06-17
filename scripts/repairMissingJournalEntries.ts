@@ -20,7 +20,8 @@ dotenv.config({ path: '.env.local' })
 import { createClient } from '@supabase/supabase-js'
 import type { Activity } from '../lib/supabase'
 import { generateJournalEntry } from '../lib/generateEntry'
-import { fetchActivityPhotos, getValidAccessToken, isChilliActivity } from '../lib/strava'
+import { fetchActivity, fetchActivityPhotos, getValidAccessToken, isChilliActivity } from '../lib/strava'
+import { syncJournalLinkToStrava } from '../lib/stravaJournalLink'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -187,14 +188,31 @@ async function main() {
       }
 
       const entry = await generateJournalEntry(activity, undefined, photoUrls)
-      const { error: insErr } = await supabaseAdmin.from('journal_entries').insert({
-        activity_id: activity.id,
-        title: entry.title,
-        entry: entry.entry,
-        tags: entry.tags,
-        mood: entry.mood,
-      })
+      const { data: insertedEntry, error: insErr } = await supabaseAdmin
+        .from('journal_entries')
+        .insert({
+          activity_id: activity.id,
+          title: entry.title,
+          entry: entry.entry,
+          tags: entry.tags,
+          mood: entry.mood,
+        })
+        .select('id')
+        .single()
       if (insErr) throw insErr
+
+      const fullActivity = await fetchActivity(accessToken, activity.strava_id)
+      const stravaLink = await syncJournalLinkToStrava({
+        accessToken,
+        activityId: activity.strava_id,
+        journalEntryId: insertedEntry.id,
+        title: entry.title,
+        mood: entry.mood,
+        existingDescription: fullActivity.description,
+      })
+      if (!stravaLink.ok) {
+        console.warn(`  Strava description not updated: ${stravaLink.error}`)
+      }
 
       journaled.add(activity.id)
       repaired++

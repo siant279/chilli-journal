@@ -19,6 +19,7 @@ type Props = {
   initialEntries: EntryWithStats[]
   stats: any
   stravaConnected: boolean
+  stravaMessage?: 'connected' | 'error' | null
   chartStartDates: string[]
   recordWalks: WalkHighlight[]
   homeCoords: { lat: number; lng: number } | null
@@ -101,6 +102,7 @@ export default function JournalClient({
   initialEntries,
   stats,
   stravaConnected,
+  stravaMessage = null,
   chartStartDates,
   recordWalks,
   homeCoords,
@@ -255,7 +257,7 @@ export default function JournalClient({
             </div>
           )}
 
-          {!stravaConnected && (
+          {!stravaConnected ? (
             <a
               href="/api/strava/connect"
               style={{
@@ -275,6 +277,64 @@ export default function JournalClient({
             >
               Connect Strava
             </a>
+          ) : (
+            <div style={{ marginTop: 16 }}>
+              {stravaMessage === 'connected' && (
+                <p
+                  style={{
+                    margin: '0 0 10px',
+                    fontSize: 12,
+                    color: 'var(--accent)',
+                    fontFamily: 'var(--font-sans)',
+                  }}
+                >
+                  Strava connected — journal links will sync to new activities.
+                </p>
+              )}
+              {stravaMessage === 'error' && (
+                <p
+                  style={{
+                    margin: '0 0 10px',
+                    fontSize: 12,
+                    color: '#b45309',
+                    fontFamily: 'var(--font-sans)',
+                  }}
+                >
+                  Strava authorization failed. Please try again.
+                </p>
+              )}
+              <a
+                href="/api/strava/connect"
+                title="Re-authorize Strava to grant write access for journal links on activities"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '6px 14px',
+                  borderRadius: 'var(--radius-pill)',
+                  border: '1px solid var(--strava)',
+                  background: 'transparent',
+                  color: 'var(--strava)',
+                  textDecoration: 'none',
+                  fontFamily: 'var(--font-label)',
+                  fontSize: 11,
+                  fontWeight: 600,
+                }}
+              >
+                Reconnect Strava
+              </a>
+              <p
+                style={{
+                  margin: '8px 0 0',
+                  fontSize: 11,
+                  color: 'var(--header-sub)',
+                  fontFamily: 'var(--font-sans)',
+                  lineHeight: 1.45,
+                }}
+              >
+                Reconnect once to add journal links on activity descriptions.
+              </p>
+            </div>
           )}
         </div>
       </header>

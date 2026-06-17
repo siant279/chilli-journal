@@ -15,10 +15,12 @@ dotenv.config({ path: '.env.local' })
 import { createClient } from '@supabase/supabase-js'
 import {
   fetchAllActivities,
+  fetchActivity,
   fetchActivityPhotos,
   isChilliActivity,
   getValidAccessToken,
 } from '../lib/strava'
+import { syncJournalLinkToStrava } from '../lib/stravaJournalLink'
 import { laDayBoundsUtc, laTodayYmd } from '../lib/laCalendar'
 import { getHistoricalWeather } from '../lib/weather'
 import { generateJournalEntry } from '../lib/generateEntry'
@@ -228,7 +230,7 @@ async function main() {
       const entry = await generateJournalEntry(activityRecord as any, undefined, photoUrls)
       await sleep(500)
 
-      const { error: entryError } = await supabaseAdmin
+      const { data: insertedEntry, error: entryError } = await supabaseAdmin
         .from('journal_entries')
         .insert({
           activity_id: activity.id,
@@ -237,7 +239,22 @@ async function main() {
           tags: entry.tags,
           mood: entry.mood,
         })
+        .select('id')
+        .single()
       if (entryError) throw entryError
+
+      const fullActivity = await fetchActivity(accessToken, activity.id)
+      const stravaLink = await syncJournalLinkToStrava({
+        accessToken,
+        activityId: activity.id,
+        journalEntryId: insertedEntry.id,
+        title: entry.title,
+        mood: entry.mood,
+        existingDescription: fullActivity.description,
+      })
+      if (!stravaLink.ok) {
+        console.warn(`  ⚠ Strava description not updated: ${stravaLink.error}`)
+      }
 
       console.log(`  ✓ "${entry.title}" [${entry.mood}]`)
       imported++

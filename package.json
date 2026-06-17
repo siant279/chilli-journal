@@ -13,7 +13,8 @@
     "repair:coords": "npx ts-node --project tsconfig.scripts.json scripts/repairActivityStartCoords.ts",
     "backfill:locations": "npx ts-node --project tsconfig.scripts.json scripts/backfillLocationsFromCoords.ts",
     "diag:day": "npx ts-node --project tsconfig.scripts.json scripts/diagDayActivities.ts",
-    "refetch:weather": "npx ts-node --project tsconfig.scripts.json scripts/refetchWeatherRecent.ts"
+    "refetch:weather": "npx ts-node --project tsconfig.scripts.json scripts/refetchWeatherRecent.ts",
+    "sync:strava-links": "npx ts-node --project tsconfig.scripts.json scripts/syncStravaJournalLinks.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",

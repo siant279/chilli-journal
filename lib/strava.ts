@@ -13,7 +13,7 @@ export function getStravaAuthUrl(redirectUri: string): string {
     response_type: 'code',
     redirect_uri: redirectUri,
     approval_prompt: 'force',
-    scope: 'activity:read_all',
+    scope: 'activity:read_all,activity:write',
   })
   return `https://www.strava.com/oauth/authorize?${params}`
 }
@@ -199,6 +199,28 @@ export async function fetchActivityPhotos(accessToken: string, activityId: numbe
     }
   }
   return []
+}
+
+/** Update activity fields (e.g. description). Requires activity:write scope. */
+export async function updateActivityDescription(
+  accessToken: string,
+  activityId: number,
+  description: string,
+): Promise<void> {
+  const resp = await fetch(`${BASE_URL}/activities/${activityId}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ description }),
+  })
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => '')
+    throw new Error(
+      `Strava activity update failed: ${resp.status}${body ? ` — ${body.slice(0, 200)}` : ''}`.trim(),
+    )
+  }
 }
 
 /**

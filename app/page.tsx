@@ -106,7 +106,11 @@ async function checkStravaConnected(): Promise<boolean> {
   }
 }
 
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams?: { strava_connected?: string; strava_error?: string }
+}) {
   const [journalPage, stats, stravaConnected, chartStartDates, recordWalks] = await Promise.all([
     getEntries(),
     getStats(),
@@ -118,11 +122,19 @@ export default async function Home() {
   const entries = mergeJournalWithRecords(journalPage, recordWalks)
   const homeCoords = getHomeCoordsFromEnv()
 
+  const stravaMessage =
+    searchParams?.strava_connected === 'true'
+      ? 'connected'
+      : searchParams?.strava_error
+        ? 'error'
+        : null
+
   return (
     <JournalClient
       initialEntries={entries}
       stats={stats}
       stravaConnected={stravaConnected}
+      stravaMessage={stravaMessage}
       chartStartDates={chartStartDates}
       recordWalks={recordWalks}
       homeCoords={homeCoords}
