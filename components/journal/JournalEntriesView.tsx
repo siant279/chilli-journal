@@ -11,6 +11,7 @@ type Props = {
   entries: EntryWithStats[]
   layout: JournalLayoutMode
   selectedId: string | null
+  focusEntryId?: string | null
   onSelectId: (id: string) => void
 }
 
@@ -79,6 +80,7 @@ export default function JournalEntriesView({
   entries,
   layout,
   selectedId,
+  focusEntryId = null,
   onSelectId,
 }: Props) {
   const [page, setPage] = useState(1)
@@ -86,6 +88,14 @@ export default function JournalEntriesView({
   useEffect(() => {
     setPage(1)
   }, [entries.length, layout])
+
+  useEffect(() => {
+    if (layout !== 'paginated' || !focusEntryId) return
+    const idx = entries.findIndex(e => e.id === focusEntryId)
+    if (idx >= 0) {
+      setPage(Math.floor(idx / ENTRIES_PER_PAGE) + 1)
+    }
+  }, [layout, focusEntryId, entries])
 
   const totalPages = Math.max(1, Math.ceil(entries.length / ENTRIES_PER_PAGE))
   const pageEntries = useMemo(() => {

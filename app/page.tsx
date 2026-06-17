@@ -5,6 +5,7 @@ import { getValidAccessToken } from '@/lib/strava'
 import type { WalkHighlight } from '@/lib/highlightedWalks'
 import { getWalkHighlights } from '@/lib/highlightedWalks'
 import { getHomeCoordsFromEnv } from '@/lib/homeCoords'
+import { isJournalEntryUuid } from '@/lib/journalDeepLink'
 
 /** Record holders older than the newest 100 posts still need a DOM anchor for spotlight links. */
 function mergeJournalWithRecords(journal: EntryWithStats[], records: WalkHighlight[]): EntryWithStats[] {
@@ -15,6 +16,27 @@ function mergeJournalWithRecords(journal: EntryWithStats[], records: WalkHighlig
   return Array.from(byId.values()).sort(
     (a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime(),
   )
+}
+
+function mergeJournalEntry(entries: EntryWithStats[], extra: EntryWithStats | null): EntryWithStats[] {
+  if (!extra || entries.some(e => e.id === extra.id)) return entries
+  return [extra, ...entries].sort(
+    (a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime(),
+  )
+}
+
+async function getEntryById(id: string): Promise<EntryWithStats | null> {
+  if (!isJournalEntryUuid(id)) return null
+  const { data, error } = await supabaseAdmin
+    .from('entries_with_stats')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) {
+    console.error('Failed to fetch deep-linked entry:', error)
+    return null
+  }
+  return data
 }
 
 /** New journal rows must show without redeploy; do not statically cache this page at build time. */
@@ -109,17 +131,22 @@ async function checkStravaConnected(): Promise<boolean> {
 export default async function Home({
   searchParams,
 }: {
-  searchParams?: { strava_connected?: string; strava_error?: string }
+  searchParams?: { entry?: string; strava_connected?: string; strava_error?: string }
 }) {
-  const [journalPage, stats, stravaConnected, chartStartDates, recordWalks] = await Promise.all([
+  const deepLinkEntryId =
+    searchParams?.entry && isJournalEntryUuid(searchParams.entry) ? searchParams.entry : null
+
+  const [journalPage, stats, stravaConnected, chartStartDates, recordWalks, deepLinkedEntry] =
+    await Promise.all([
     getEntries(),
     getStats(),
     checkStravaConnected(),
     getEntryStartDatesForChart(),
     getWalkHighlights(supabaseAdmin),
+    deepLinkEntryId ? getEntryById(deepLinkEntryId) : Promise.resolve(null),
   ])
 
-  const entries = mergeJournalWithRecords(journalPage, recordWalks)
+  const entries = mergeJournalEntry(mergeJournalWithRecords(journalPage, recordWalks), deepLinkedEntry)
   const homeCoords = getHomeCoordsFromEnv()
 
   const stravaMessage =
@@ -138,6 +165,7 @@ export default async function Home({
       chartStartDates={chartStartDates}
       recordWalks={recordWalks}
       homeCoords={homeCoords}
+      deepLinkEntryId={deepLinkEntryId}
     />
   )
 }

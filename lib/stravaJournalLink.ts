@@ -1,4 +1,5 @@
 import { getMoodStyle } from './mood'
+import { buildJournalEntryDeepLink, isJournalEntryUuid } from './journalDeepLink'
 import { updateActivityDescription } from './strava'
 
 /** Marker line — used to replace prior journal links on re-sync. */
@@ -21,8 +22,10 @@ export function getJournalAppBaseUrl(): string {
 }
 
 export function buildJournalEntryUrl(journalEntryId: string): string {
-  return `${getJournalAppBaseUrl()}/#journal-entry-${journalEntryId}`
+  return buildJournalEntryDeepLink(journalEntryId, getJournalAppBaseUrl())
 }
+
+export { isJournalEntryUuid }
 
 export function buildStravaJournalDescriptionBlock(
   title: string,

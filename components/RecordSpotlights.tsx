@@ -123,7 +123,11 @@ export default function RecordSpotlights({ highlights, onSelectEntry }: Props) {
           }
 
           return (
-            <a key={h.kind} href={`#journal-entry-${h.entry.id}`} style={cardStyle}>
+            <a
+              key={h.kind}
+              href={`/?entry=${h.entry.id}#journal-entry-${h.entry.id}`}
+              style={cardStyle}
+            >
               {inner}
             </a>
           )

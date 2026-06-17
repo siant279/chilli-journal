@@ -1,10 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { EntryWithStats } from '@/lib/supabase'
 import type { WalkHighlight } from '@/lib/highlightedWalks'
 import { haversineFromHome } from '@/lib/geo'
 import { newestEntry } from '@/lib/journalTimeline'
+import { parseJournalEntryIdFromHash } from '@/lib/journalDeepLink'
 import {
   JOURNAL_LAYOUTS,
   LAYOUT_STORAGE_KEY,
@@ -23,6 +24,7 @@ type Props = {
   chartStartDates: string[]
   recordWalks: WalkHighlight[]
   homeCoords: { lat: number; lng: number } | null
+  deepLinkEntryId?: string | null
 }
 
 type SortKey = 'date' | 'distance' | 'elevation' | 'from_home'
@@ -106,18 +108,27 @@ export default function JournalClient({
   chartStartDates,
   recordWalks,
   homeCoords,
+  deepLinkEntryId = null,
 }: Props) {
+  const [entries, setEntries] = useState(initialEntries)
   const [view, setView] = useState<'journal' | 'stats'>('journal')
   const [filter, setFilter] = useState<string>('all')
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortDesc, setSortDesc] = useState(true)
   const [layout, setLayout] = useState<JournalLayoutMode>('split')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(deepLinkEntryId)
   const [layoutHydrated, setLayoutHydrated] = useState(false)
+  const [deepLinkReady, setDeepLinkReady] = useState(false)
+  const deepLinkTargetRef = useRef<string | null>(deepLinkEntryId)
+  const deepLinkScrolledRef = useRef(false)
+
+  useEffect(() => {
+    setEntries(initialEntries)
+  }, [initialEntries])
 
   const moods = ['all', 'EPIC', 'EXCELLENT', 'SOLID', 'SUSPICIOUS', 'CHAOTIC']
   const filtered =
-    filter === 'all' ? initialEntries : initialEntries.filter(e => e.mood === filter)
+    filter === 'all' ? entries : entries.filter(e => e.mood === filter)
 
   const chronological = useMemo(
     () => sortJournalEntries(filtered, 'date', true, homeCoords),
@@ -144,15 +155,102 @@ export default function JournalClient({
     localStorage.setItem(LAYOUT_STORAGE_KEY, layout)
   }, [layout, layoutHydrated])
 
+  useLayoutEffect(() => {
+    const hashId = parseJournalEntryIdFromHash(window.location.hash)
+    const targetId = deepLinkEntryId || hashId
+    if (!targetId) {
+      setDeepLinkReady(true)
+      return
+    }
+
+    deepLinkTargetRef.current = targetId
+    deepLinkScrolledRef.current = false
+    setView('journal')
+    setFilter('all')
+    setSelectedId(targetId)
+
+    if (initialEntries.some(e => e.id === targetId)) {
+      setDeepLinkReady(true)
+    }
+  }, [deepLinkEntryId, initialEntries])
+
   useEffect(() => {
+    const targetId = deepLinkTargetRef.current
+    if (!targetId || deepLinkReady) return
+
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(`/api/journal/entry?id=${encodeURIComponent(targetId)}`)
+        if (res.ok) {
+          const entry = (await res.json()) as EntryWithStats
+          if (!cancelled) {
+            setEntries(prev => {
+              if (prev.some(e => e.id === entry.id)) return prev
+              return [...prev, entry].sort(
+                (a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime(),
+              )
+            })
+          }
+        }
+      } catch {
+        // Best-effort — entry may be outside the loaded page window.
+      } finally {
+        if (!cancelled) setDeepLinkReady(true)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [deepLinkReady, deepLinkEntryId, initialEntries])
+
+  useEffect(() => {
+    const onHashChange = () => {
+      const hashId = parseJournalEntryIdFromHash(window.location.hash)
+      if (!hashId) return
+      deepLinkTargetRef.current = hashId
+      deepLinkScrolledRef.current = false
+      setView('journal')
+      setFilter('all')
+      setSelectedId(hashId)
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+
+  useEffect(() => {
+    if (!deepLinkReady) return
     if (!filtered.length) {
       setSelectedId(null)
       return
     }
-    if (!selectedId || !filtered.some(e => e.id === selectedId)) {
-      setSelectedId(latestEntry?.id ?? null)
+
+    const target = deepLinkTargetRef.current
+    if (target && filtered.some(e => e.id === target)) {
+      setSelectedId(target)
+      return
     }
-  }, [filtered, selectedId, latestEntry])
+
+    if (selectedId && filtered.some(e => e.id === selectedId)) return
+
+    setSelectedId(latestEntry?.id ?? null)
+  }, [deepLinkReady, filtered, selectedId, latestEntry])
+
+  useEffect(() => {
+    if (!deepLinkReady || !selectedId || deepLinkScrolledRef.current) return
+    const target = deepLinkTargetRef.current
+    if (!target || selectedId !== target) return
+
+    const timer = window.setTimeout(() => {
+      document.getElementById(`journal-entry-${selectedId}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      })
+      deepLinkScrolledRef.current = true
+    }, 200)
+    return () => window.clearTimeout(timer)
+  }, [deepLinkReady, selectedId, layout])
 
   const focusEntry = useCallback(
     (id: string) => {
@@ -371,7 +469,7 @@ export default function JournalClient({
 
       <main style={{ maxWidth: mainMaxWidth, margin: '0 auto', padding: '28px 16px' }}>
         {view === 'stats' && stats && (
-          <StatsDashboard stats={stats} entries={initialEntries} chartStartDates={chartStartDates} />
+          <StatsDashboard stats={stats} entries={entries} chartStartDates={chartStartDates} />
         )}
 
         {view === 'journal' && (
@@ -500,11 +598,11 @@ export default function JournalClient({
                     marginBottom: 8,
                   }}
                 >
-                  {initialEntries.length === 0
+                  {entries.length === 0
                     ? 'No adventures yet.'
                     : 'No entries match this filter.'}
                 </div>
-                {initialEntries.length === 0 && (
+                {entries.length === 0 && (
                   <div style={{ fontSize: 13, fontFamily: 'var(--font-sans)' }}>
                     Connect Strava and run the historical import to populate the journal.
                   </div>
@@ -515,6 +613,7 @@ export default function JournalClient({
                 entries={sorted}
                 layout={layout}
                 selectedId={layout === 'split' ? selectedId : null}
+                focusEntryId={selectedId}
                 onSelectId={setSelectedId}
               />
             )}

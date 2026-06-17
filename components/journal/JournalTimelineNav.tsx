@@ -154,6 +154,14 @@ export default function JournalTimelineNav({
     }
   }, [months, activeYm, selectedId, entries])
 
+  useEffect(() => {
+    if (!selectedId) return
+    const entry = entries.find(e => e.id === selectedId)
+    if (!entry) return
+    setActiveYm(entryLaYm(entry))
+    setActiveYmd(entryLaYmd(entry))
+  }, [selectedId, entries])
+
   const activeMonth = months.find(m => m.ym === activeYm)
   const dayMap = useMemo(() => {
     const m = new Map<string, MonthBucket['days'][0]>()
@@ -163,14 +171,6 @@ export default function JournalTimelineNav({
 
   const cells = activeYm ? monthGridCells(activeYm) : []
   const activeDay = activeYmd ? dayMap.get(activeYmd) : undefined
-
-  useEffect(() => {
-    if (!selectedId || !activeMonth) return
-    const entry = entries.find(e => e.id === selectedId)
-    if (!entry) return
-    const ymd = entryLaYmd(entry)
-    if (activeMonth.days.some(d => d.ymd === ymd)) setActiveYmd(ymd)
-  }, [selectedId, activeMonth, entries])
 
   if (!months.length) return null
 
