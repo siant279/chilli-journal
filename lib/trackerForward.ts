@@ -20,10 +20,11 @@ export async function forwardActivityToTracker(
   let activity: Record<string, unknown> | null = null
   if (aspect !== 'delete') {
     const accessToken = await getValidAccessToken()
-    activity = await fetchActivity(accessToken, activityId)
-    const sportType = (activity.sport_type || activity.type) as string | undefined
-    const name = (activity.name as string) || ''
+    const fetched = await fetchActivity(accessToken, activityId)
+    const sportType = (fetched.sport_type || fetched.type) as string | undefined
+    const name = (fetched.name as string) || ''
     if (isJournalActivity(sportType, name)) return
+    activity = fetched as Record<string, unknown>
   }
 
   const resp = await fetch(TRACKER_INGEST_URL, {
