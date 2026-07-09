@@ -8,6 +8,7 @@ import { logWebhookIngest } from '@/lib/webhookLog'
 import { firstLatLngFromEncodedPolyline, normalizeStartLatLng, resolveWeatherCoords } from '@/lib/geo'
 import { getHomeCoordsFromEnv } from '@/lib/homeCoords'
 import { resolveActivityPlaceNames } from '@/lib/reverseGeocode'
+import { forwardActivityToTracker } from '@/lib/trackerForward'
 
 export const maxDuration = 120
 
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 }
 
-// Strava webhook event (POST) — fires when a new activity is created
+// Strava webhook event (POST) — fires on activity create/update/delete
 export async function POST(request: NextRequest) {
   let body: Record<string, unknown>
   try {
@@ -67,11 +68,24 @@ export async function POST(request: NextRequest) {
     owner_id: body.owner_id,
   })
 
-  // Only process new activity creation events
-  if (body.object_type !== 'activity' || body.aspect_type !== 'create') {
+  if (body.object_type !== 'activity') {
     void logWebhookIngest({
       stage: 'ignored_event',
-      detail: 'not_activity_create',
+      detail: 'not_activity',
+      meta: {
+        object_type: body.object_type,
+        aspect_type: body.aspect_type,
+        object_id: body.object_id,
+      },
+    })
+    return NextResponse.json({ ok: true })
+  }
+
+  const aspect = body.aspect_type as string
+  if (!['create', 'update', 'delete'].includes(aspect)) {
+    void logWebhookIngest({
+      stage: 'ignored_event',
+      detail: 'unknown_aspect',
       meta: {
         object_type: body.object_type,
         aspect_type: body.aspect_type,
@@ -103,8 +117,19 @@ export async function POST(request: NextRequest) {
     strava_activity_id: activityId,
     strava_owner_id: ownerId ?? null,
     stage: 'received',
-    detail: 'activity_create',
+    detail: `activity_${aspect}`,
   })
+
+  // Forward training activities to Training Tracker (non-blocking)
+  void forwardActivityToTracker(
+    activityId,
+    aspect as 'create' | 'update' | 'delete',
+  ).catch(console.error)
+
+  // Journal logic: only new creates
+  if (aspect !== 'create') {
+    return NextResponse.json({ ok: true })
+  }
 
   try {
     await processNewActivity(activityId, ownerId)
