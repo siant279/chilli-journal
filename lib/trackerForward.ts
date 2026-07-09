@@ -1,11 +1,11 @@
-import { fetchActivity, getValidAccessToken, isChilliActivity } from './strava'
+import { fetchActivity, getValidAccessToken } from './strava'
 
 const TRACKER_INGEST_URL = process.env.TRACKER_INGEST_URL
 const TRACKER_INGEST_SECRET = process.env.TRACKER_INGEST_SECRET
 
-export function isJournalActivity(sportType: string | undefined, name: string): boolean {
-  if (sportType === 'Walk') return true
-  return isChilliActivity(name)
+export function isJournalActivity(sportType: string | undefined, _name: string): boolean {
+  // Only walks are journal-only; runs with "Chilli" in the title still sync to the tracker.
+  return sportType === 'Walk'
 }
 
 export async function forwardActivityToTracker(
