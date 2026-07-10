@@ -120,11 +120,15 @@ export async function POST(request: NextRequest) {
     detail: `activity_${aspect}`,
   })
 
-  // Forward training activities to Training Tracker (non-blocking)
-  void forwardActivityToTracker(
-    activityId,
-    aspect as 'create' | 'update' | 'delete',
-  ).catch(console.error)
+  // Forward training activities to Training Tracker before returning
+  try {
+    await forwardActivityToTracker(
+      activityId,
+      aspect as 'create' | 'update' | 'delete',
+    )
+  } catch (e) {
+    console.error(`Tracker forward failed for activity ${activityId}:`, e)
+  }
 
   // Journal logic: only new creates
   if (aspect !== 'create') {
