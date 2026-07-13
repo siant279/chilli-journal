@@ -122,12 +122,35 @@ export async function POST(request: NextRequest) {
 
   // Forward training activities to Training Tracker before returning
   try {
-    await forwardActivityToTracker(
+    const forwardResult = await forwardActivityToTracker(
       activityId,
       aspect as 'create' | 'update' | 'delete',
     )
+    if (forwardResult.status === 'ok') {
+      void logWebhookIngest({
+        strava_activity_id: activityId,
+        strava_owner_id: ownerId ?? null,
+        stage: 'tracker_forward_ok',
+        detail: `activity_${aspect}`,
+      })
+    } else {
+      void logWebhookIngest({
+        strava_activity_id: activityId,
+        strava_owner_id: ownerId ?? null,
+        stage: 'tracker_forward_skipped',
+        detail: forwardResult.reason,
+      })
+    }
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
     console.error(`Tracker forward failed for activity ${activityId}:`, e)
+    void logWebhookIngest({
+      strava_activity_id: activityId,
+      strava_owner_id: ownerId ?? null,
+      stage: 'tracker_forward_failed',
+      detail: `activity_${aspect}`,
+      error_message: msg,
+    })
   }
 
   // Journal logic: only new creates

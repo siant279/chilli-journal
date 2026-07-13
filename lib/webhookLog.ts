@@ -32,6 +32,9 @@ export type WebhookIngestStage =
   | 'skipped_owner'
   | 'skipped_filter'
   | 'skipped_duplicate_journal'
+  | 'tracker_forward_ok'
+  | 'tracker_forward_skipped'
+  | 'tracker_forward_failed'
   | 'success'
   | 'error'
 
