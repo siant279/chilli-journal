@@ -1,7 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase'
 import { EntryWithStats } from '@/lib/supabase'
 import JournalClient from '@/components/JournalClient'
-import { getValidAccessToken } from '@/lib/strava'
 import type { WalkHighlight } from '@/lib/highlightedWalks'
 import { getWalkHighlights } from '@/lib/highlightedWalks'
 import { getHomeCoordsFromEnv } from '@/lib/homeCoords'
@@ -118,16 +117,6 @@ async function getStats() {
   }
 }
 
-async function checkStravaConnected(): Promise<boolean> {
-  // Don't treat "row exists" as connected — tokens can be revoked/invalid while the row remains.
-  try {
-    await getValidAccessToken()
-    return true
-  } catch {
-    return false
-  }
-}
-
 export default async function Home({
   searchParams,
 }: {
@@ -136,11 +125,9 @@ export default async function Home({
   const deepLinkEntryId =
     searchParams?.entry && isJournalEntryUuid(searchParams.entry) ? searchParams.entry : null
 
-  const [journalPage, stats, stravaConnected, chartStartDates, recordWalks, deepLinkedEntry] =
-    await Promise.all([
+  const [journalPage, stats, chartStartDates, recordWalks, deepLinkedEntry] = await Promise.all([
     getEntries(),
     getStats(),
-    checkStravaConnected(),
     getEntryStartDatesForChart(),
     getWalkHighlights(supabaseAdmin),
     deepLinkEntryId ? getEntryById(deepLinkEntryId) : Promise.resolve(null),
@@ -160,7 +147,6 @@ export default async function Home({
     <JournalClient
       initialEntries={entries}
       stats={stats}
-      stravaConnected={stravaConnected}
       stravaMessage={stravaMessage}
       chartStartDates={chartStartDates}
       recordWalks={recordWalks}

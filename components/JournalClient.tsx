@@ -19,7 +19,6 @@ import JournalEntriesView from './journal/JournalEntriesView'
 type Props = {
   initialEntries: EntryWithStats[]
   stats: any
-  stravaConnected: boolean
   stravaMessage?: 'connected' | 'error' | null
   chartStartDates: string[]
   recordWalks: WalkHighlight[]
@@ -103,7 +102,6 @@ function chip(active: boolean): React.CSSProperties {
 export default function JournalClient({
   initialEntries,
   stats,
-  stravaConnected,
   stravaMessage = null,
   chartStartDates,
   recordWalks,
@@ -355,27 +353,6 @@ export default function JournalClient({
             </div>
           )}
 
-          {!stravaConnected && (
-            <a
-              href="/api/strava/connect"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                marginTop: 16,
-                padding: '8px 20px',
-                borderRadius: 'var(--radius-pill)',
-                background: 'var(--strava)',
-                color: '#fff',
-                textDecoration: 'none',
-                fontFamily: 'var(--font-label)',
-                fontSize: 12,
-                fontWeight: 600,
-              }}
-            >
-              Connect Strava
-            </a>
-          )}
           {stravaMessage === 'connected' && (
             <p
               style={{
@@ -570,7 +547,7 @@ export default function JournalClient({
                 </div>
                 {entries.length === 0 && (
                   <div style={{ fontSize: 13, fontFamily: 'var(--font-sans)' }}>
-                    Connect Strava and run the historical import to populate the journal.
+                    Connect Strava from /admin (password-protected) and run the historical import.
                   </div>
                 )}
               </div>

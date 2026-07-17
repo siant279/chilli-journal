@@ -68,13 +68,15 @@ Required values:
 
 ### 5. Connect Strava
 
+Set `ADMIN_PASSWORD` in `.env.local` (and in Vercel for production).
+
 ```bash
 npm run dev
 ```
 
-Visit [http://localhost:3000](http://localhost:3000) and click **Connect Strava**. This saves your OAuth tokens to Supabase.
+Visit [http://localhost:3000/admin](http://localhost:3000/admin), enter the password, then click **Connect / reconnect Strava**. This saves your OAuth tokens to Supabase. The public homepage does not show a Connect button.
 
-New journal entries automatically append a link back to the journal on each Strava activity description (title, mood emoji, and URL). This needs the `activity:write` scope — if you connected Strava before this feature shipped, click **Connect Strava** again once to grant write access.
+New journal entries automatically append a link back to the journal on each Strava activity description (title, mood emoji, and URL). This needs the `activity:write` scope — if you connected Strava before this feature shipped, unlock `/admin` and reconnect once to grant write access.
 
 ### 6. Run historical import
 
