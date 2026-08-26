@@ -153,8 +153,8 @@ export async function POST(request: NextRequest) {
     })
   }
 
-  // Journal logic: only new creates
-  if (aspect !== 'create') {
+  // Journal on create, and on update (Garmin default titles often get renamed to Chilli/husky after upload).
+  if (aspect !== 'create' && aspect !== 'update') {
     return NextResponse.json({ ok: true })
   }
 

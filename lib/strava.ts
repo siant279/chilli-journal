@@ -224,12 +224,15 @@ export async function updateActivityDescription(
 }
 
 /**
- * Fi collar / Chilli walks. Strava title usually contains "Chilli" and/or "Fi Smart Collar".
+ * Outings that belong in Chilli's journal (not Sian's solo training).
+ * Matches Fi collar auto-titles, plus custom names (Chilli / husky / canicross / skijor).
  * Do not use naive substring `"fi"` — it matches inside unrelated words ("office", "fitness", …).
  */
 export function isChilliActivity(name: string): boolean {
   const lower = name.toLowerCase()
   if (lower.includes('chilli')) return true
+  if (/\bhusky\b/.test(lower) || lower.includes('huskies')) return true
+  if (lower.includes('canicross') || /skijor/.test(lower)) return true
   if (/\bfi\b/.test(lower)) return true
   if (lower.includes('fi smart') || lower.includes('fi collar')) return true
   return false

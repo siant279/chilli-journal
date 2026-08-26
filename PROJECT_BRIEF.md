@@ -47,7 +47,7 @@ A Next.js web app that automatically turns Chilli's dog walks into an AI-generat
 ### Strava Integration
 Fi smart collar syncs walks to Strava with title:
 `"Sian took Chilli for a walk with her Fi Smart Collar"`
-Filter: activity name contains "Chilli" OR "Fi" (case insensitive)
+Filter: activity name matches Chilli, husky, canicross/skijor, or Fi collar (word-boundary `fi`; case insensitive). Garmin default titles that are later renamed still journal on the Strava update webhook.
 
 API client: direct OAuth + webhook; default API base `https://www.strava.com/api/v3` (`STRAVA_API_BASE_URL` when Strava enables api-v3 host). See README for developer tier / subscription checklist.
 

@@ -5,6 +5,7 @@
  *   npm run import                              # since Nov 2023 (full backfill)
  *   npm run import -- --today                  # LA calendar day only
  *   npm run import -- --date 2026-05-04        # one LA calendar day
+ *   npm run import -- --since 2026-08-21       # from that LA calendar day through now
  *
  * Safe to run multiple times — skips activities that already have a journal row.
  */
@@ -54,7 +55,14 @@ async function fetchWithRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> 
   throw new Error('Max retries exceeded')
 }
 
-type ImportScope = { mode: 'full' } | { mode: 'day'; ymd: string }
+type ImportScope = { mode: 'full' } | { mode: 'day'; ymd: string } | { mode: 'since'; ymd: string }
+
+function parseYmd(raw: string | undefined, flag: string): string {
+  if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    throw new Error(`${flag} expects YYYY-MM-DD`)
+  }
+  return raw
+}
 
 function parseArgs(): ImportScope {
   const argv = process.argv.slice(2)
@@ -67,17 +75,13 @@ Usage: npm run import -- [options]
   (default)     Import Chilli/Fi activities from Strava since Nov 2023
   --today       Only America/Los_Angeles calendar day (today in Truckee time)
   --date Y-M-D  Only that calendar day in America/Los_Angeles
+  --since Y-M-D From that LA calendar day through now
 `)
       process.exit(0)
     }
     if (a === '--today') return { mode: 'day', ymd: laTodayYmd() }
-    if (a === '--date') {
-      const ymd = argv[++i]
-      if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
-        throw new Error('--date expects YYYY-MM-DD')
-      }
-      return { mode: 'day', ymd }
-    }
+    if (a === '--date') return { mode: 'day', ymd: parseYmd(argv[++i], '--date') }
+    if (a === '--since') return { mode: 'since', ymd: parseYmd(argv[++i], '--since') }
   }
   return { mode: 'full' }
 }
@@ -116,6 +120,11 @@ async function main() {
     console.log(`\nScope: single LA day ${scope.ymd}`)
     console.log(`UTC window [start, end): ${start} .. ${end}\n`)
     console.log('Fetching Strava activities in this window only...')
+  } else if (scope.mode === 'since') {
+    const { start } = laDayBoundsUtc(scope.ymd)
+    afterSec = Math.floor(new Date(start).getTime() / 1000)
+    console.log(`\nScope: since LA day ${scope.ymd} (${start} UTC) through now\n`)
+    console.log('Fetching Strava activities in this window...')
   } else {
     afterSec = Math.floor(new Date('2023-11-01').getTime() / 1000)
     console.log('\nFetching Strava activities since Nov 2023 (full list from API)...')

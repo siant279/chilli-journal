@@ -88,7 +88,7 @@ npm run import
 
 This will:
 - Fetch ALL your Strava activities
-- Filter for Chilli walks (name contains "Chilli" or "Fi", case insensitive)
+- Filter for Chilli outings (name contains Chilli, husky, canicross/skijor, or Fi collar)
 - Fetch historical weather for each walk's date and location
 - Generate an AI journal entry in Chilli's voice for each
 - Save everything to Supabase

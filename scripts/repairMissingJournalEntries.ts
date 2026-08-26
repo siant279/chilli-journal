@@ -11,7 +11,7 @@
  *   - `--since YYYY-MM-DD` is interpreted as midnight on that calendar date in your machine's
  *     local timezone (not UTC), so "last few days" matches what you expect.
  *   - By default, names must pass isChilliActivity (see lib/strava.ts — Chilli / Fi collar, not bare "fi" in words).
- *     Use --no-name-filter only if you intentionally want every unmatched activity in range.
+ *     Also matches husky / canicross / skijor. Use --no-name-filter only if you want every unmatched activity in range.
  */
 
 import * as dotenv from 'dotenv'
